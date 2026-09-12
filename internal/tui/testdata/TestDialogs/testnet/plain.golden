@@ -1,0 +1,31 @@
+
+  ╱╱╱╱╱╱ █   █ █▀▀▀▀ █▀▀▀▄ █▀▀▀▀ █▀▀▀▄ ▄▀▀▀▄   █   █ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▄ █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▀ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ █▀▀▀█ █▀▀▀  █   █ █▀▀▀  █▀▀▀▄ █▀▀▀█   █▀▀▀█ █▀▀▀█ █▀▀▀▄ █   █ █▀▀▀   ▀▀▀▄  ▀▀▀▄ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ ▀   ▀ ▀▀▀▀▀ ▀▀▀▀  ▀▀▀▀▀ ▀   ▀ ▀   ▀   ▀   ▀ ▀   ▀ ▀   ▀ ▀   ▀ ▀▀▀▀▀ ▀▀▀▀  ▀▀▀▀  ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ hh                                                                       v0.1.0 ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+
+  /work/hh-demo
+
+  ◇  testnet  operator 0.0.2
+    3 scenarios · costs hbar
+
+  Scenarios ──────────────────── Network ╭───────────────────────────────────╮────────────────
+                                         │                                   │
+  ● token-flow 8 steps           ○ mock i│          Run on testnet?          │
+  ● topic-submit 4 steps         ○ local │                                   │
+  ● scheduled-payout 6 steps     ◉ testne│   Running token-flow on testnet   │
+                                         │  spends testnet hbar from 0.0.2.  │
+                                         │                                   │
+                                         │        Run it        Cancel       │
+                                         │                                   │
+                                         ╰───────────────────────────────────╯
+
+
+
+
+
+   > Ready. Try run <scenario>, network <name> or ctrl+p                                                               
+ :::  
+ :::  
+
+ enter run command • ctrl+r scenarios • ctrl+n network • ctrl+p commands • ctrl+c quit • ctrl+g more

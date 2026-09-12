@@ -1,0 +1,44 @@
+name: kyc gated token
+description: a fungible token where transfers need kyc, then a freeze and a pause
+
+actors:
+  issuer: { key: ecdsa, hbar: 20 }
+  alice: { key: ed25519 }
+  bob: {}
+
+steps:
+  - token.create:
+      as: gold
+      name: Gold
+      symbol: GLD
+      decimals: 2
+      initial_supply: 100000
+      treasury: issuer
+      admin_key: issuer
+      kyc_key: issuer
+      freeze_key: issuer
+      pause_key: issuer
+
+  - token.associate: { account: alice, token: gold }
+  - token.associate: { account: bob, token: gold }
+
+  # no kyc yet, the network refuses
+  - token.transfer: { token: gold, from: issuer, to: alice, amount: 500, expect: ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN }
+
+  - token.grant_kyc: { token: gold, account: alice, key: issuer }
+  - token.transfer: { token: gold, from: issuer, to: alice, amount: 500 }
+
+  - token.relationship: { account: alice, token: gold, kyc: granted, freeze: unfrozen }
+  - token.balance: { account: alice, token: gold, equals: 500 }
+
+  - token.freeze: { token: gold, account: alice, key: issuer }
+  - token.transfer: { token: gold, from: alice, to: issuer, amount: 1, expect: ACCOUNT_FROZEN_FOR_TOKEN }
+  - token.unfreeze: { token: gold, account: alice, key: issuer }
+
+  - token.pause: { token: gold, key: issuer }
+  - token.transfer: { token: gold, from: alice, to: issuer, amount: 1, expect: TOKEN_IS_PAUSED }
+
+assert:
+  - token.paused: { token: gold, equals: true }
+  - token.balance: { account: bob, token: gold, equals: 0 }
+  - token.supply: { token: gold, equals: 100000 }

@@ -1,0 +1,31 @@
+
+  ╱╱╱╱╱╱ █   █ █▀▀▀▀ █▀▀▀▄ █▀▀▀▀ █▀▀▀▄ ▄▀▀▀▄   █   █ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▄ █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▀ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ █▀▀▀█ █▀▀▀  █   █ █▀▀▀  █▀▀▀▄ █▀▀▀█   █▀▀▀█ █▀▀▀█ █▀▀▀▄ █   █ █▀▀▀   ▀▀▀▄  ▀▀▀▄ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ ▀   ▀ ▀▀▀▀▀ ▀▀▀▀  ▀▀▀▀▀ ▀   ▀ ▀   ▀   ▀   ▀ ▀   ▀ ▀   ▀ ▀   ▀ ▀▀▀▀▀ ▀▀▀▀  ▀▀▀▀  ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ hh                                                                       v0.1.0 ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+
+  /work/hh-demo
+
+  ◇  mock  operator 0.0.2
+    3 scenarios · in process
+
+  Scenarios ──────────────────── Network ────────────────────── Last run ─────────────────────
+
+  ● token-flow 8 steps           ◉ mock in process              None
+  ● topic-submit 4 steps         ○ local solo node
+  ● scheduled-payout 6 steps     ○ testnet costs hbar
+
+
+
+
+
+
+
+
+
+
+   > Ready. Try run <scenario>, network <name> or ctrl+p                                                               
+ :::  
+ :::  
+
+ enter run command • ctrl+r scenarios • ctrl+n network • ctrl+p commands • ctrl+c quit • ctrl+g more

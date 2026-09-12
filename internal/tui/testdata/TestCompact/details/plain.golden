@@ -1,0 +1,27 @@
+
+  HEDERA HARNESS ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱ token-flow • mock • steps 7/8 • ctrl+d close
+ ╭──────────────────────────────────────────────────────────────────────────────────────╮
+ │ token-flow run 7f3a2c · scenarios/token-flow.yaml                                    │
+ │                                                                                      │
+ │ ◇  mock  operator 0.0.2                                                              │
+ │                                                                                      │
+ │ Actors ───────────────────  Progress ─────────────────  Assertions ───────────────   │
+ │ ✓ alice 0.0.1001            ✓ actors               3/3  ✓ 0  × 0  ○ 6                │
+ │ ✓ bob   0.0.1002            ● steps                7/8                               │
+ │ ✓ carol 0.0.1003            ○ assertions           0/6                               │
+ │                                                                               v0.1.0 │
+ │                                                                                      │
+ ╰──────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+
+
+   > Running token-flow... esc to cancel                                                 
+ :::  
+ :::  
+
+ esc cancel run • tab focus run • ctrl+r scenarios • ctrl+d close details …

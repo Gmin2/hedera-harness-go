@@ -1,0 +1,37 @@
+name: token with custom fees
+description: a fixed hbar fee and a 10 percent fractional fee, collected on every transfer
+
+actors:
+  issuer: { hbar: 20 }
+  collector: { hbar: 1 }
+  alice: { hbar: 5 }
+  bob: { hbar: 1 }
+
+steps:
+  - token.create:
+      as: coin
+      name: Fee Coin
+      symbol: FEE
+      initial_supply: 10000
+      treasury: issuer
+      admin_key: issuer
+      custom_fees:
+        - fixed: { hbar: 0.5, collector: collector }
+        - fractional: { numerator: 1, denominator: 10, min: 1, max: 100, collector: collector }
+
+  # fractional fee collectors are associated at token create
+  - token.relationship: { account: collector, token: coin, associated: true }
+  - token.associate: { account: alice, token: coin }
+  - token.associate: { account: bob, token: coin }
+
+  # treasury is exempt from its own fees
+  - token.transfer: { token: coin, from: issuer, to: alice, amount: 1000 }
+
+  # alice pays 0.5 hbar, bob receives 100 less than sent
+  - token.transfer: { token: coin, from: alice, to: bob, amount: 500 }
+
+assert:
+  - token.balance: { account: alice, token: coin, equals: 500 }
+  - token.balance: { account: bob, token: coin, equals: 450 }
+  - token.balance: { account: collector, token: coin, equals: 50 }
+  - account.hbar: { account: collector, equals: 1.5 }

@@ -1,0 +1,31 @@
+
+  ╱╱╱╱╱╱ █   █ █▀▀▀▀ █▀▀▀▄ █▀▀▀▀ █▀▀▀▄ ▄▀▀▀▄   █   █ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▄ █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▀ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ █▀▀▀█ █▀▀▀  █   █ █▀▀▀  █▀▀▀▄ █▀▀▀█   █▀▀▀█ █▀▀▀█ █▀▀▀▄ █   █ █▀▀▀   ▀▀▀▄  ▀▀▀▄ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ ▀   ▀ ▀▀▀▀▀ ▀▀▀▀  ▀▀▀▀▀ ▀   ▀ ▀   ▀   ▀   ▀ ▀   ▀ ▀   ▀ ▀   ▀ ▀▀▀▀▀ ▀▀▀▀  ▀▀▀▀  ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ hh                                                                       v0.1.0 ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+
+  /work/hh-demo
+
+  ◇  mock  operator 0.0.2
+    3 scenarios · in process
+
+  Scenarios ─────────────╭────────────────────────────────────────────────────────────────────╮
+                         │ Network ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱ │
+  ● token-flow 8 steps   │                                                                    │
+  ● topic-submit 4 steps │ ◉ mock                                                  in process │
+  ● scheduled-payout 6 st│ ○ local                                                  solo node │
+                         │ ○ testnet                                               costs hbar │
+                         │                                                                    │
+                         │ ↑/↓ choose • enter confirm • esc cancel                            │
+                         ╰────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+   > Ready. Try run <scenario>, network <name> or ctrl+p                                                               
+ :::  
+ :::  
+
+ enter run command • ctrl+r scenarios • ctrl+n network • ctrl+p commands • ctrl+c quit • ctrl+g more

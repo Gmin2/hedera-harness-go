@@ -1,0 +1,23 @@
+name: permissioned topic
+description: >
+  port of hedera-code-snippets/hcs-topic-permissioned-write. only members of a
+  1 of 2 key list may write, everyone else gets INVALID_SIGNATURE
+
+actors:
+  writer1: {}
+  writer2: { key: ed25519 }
+  stranger: {}
+  writers: { threshold: 1, keys: [writer1, writer2], hbar: 1 }
+
+steps:
+  - topic.create: { as: news, submit_key: writers, topic_memo: members only }
+
+  - topic.submit: { topic: news, message: hello from the operator, expect: INVALID_SIGNATURE }
+  - topic.submit: { topic: news, message: hello from a stranger, signers: [stranger], expect: INVALID_SIGNATURE }
+  - topic.submit: { topic: news, message: first post, signers: [writer1] }
+  - topic.submit: { topic: news, message: second post, signers: [writer2] }
+
+assert:
+  - topic.messages: { topic: news, count: 2 }
+  - topic.messages: { topic: news, sequence: 1, equals: first post }
+  - topic.messages: { topic: news, contains: second }

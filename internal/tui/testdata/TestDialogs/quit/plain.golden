@@ -1,0 +1,31 @@
+
+ │ run token-flow --network mock                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+                                                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+   Actors ────────────────────────────────────────────────────────────────────────────  █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
+                                                                                        █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
+   ✓ alice 0.0.1001 (key=ed25519, hbar=100)                                             ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
+   ✓ bob   0.0.1002 (key=ecdsa, hbar=50)                                                harness                v0.1.0
+   ✓ carol 0.0.1003 (key=ed25519, hbar=10)                                              ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+
+   Steps ─────────────────────────────────────────────────────────────────────────────  token-flow
+                                                                                        run 7f3a2c · scenarios/token…
+   ✓ token.create gold (supply=1000, d╭──────────────────────────────────────────╮
+                                      │                                          │      ◇  mock  operator 0.0.2
+    status    SUCCESS                 │           Quit hedera harness?           │    
+    tx        0.0.2@1757712000.0000001│  The running scenario will be canceled.  │      Actors ──────────────────────
+    hashscan  hashscan.io/testnet/tran│                                          │      ✓ alice 0.0.1001
+    gold      0.0.1004                │             Quit        Stay             │      ✓ bob   0.0.1002
+                                      │                                          │      ✓ carol 0.0.1003
+   ✓ token.associate bob (token=gold) │        Press ctrl+c again to quit.       │
+                                      │                                          │      Progress ────────────────────
+    status    SUCCESS                 ╰──────────────────────────────────────────╯      ✓ actors                  3/3
+    tx        0.0.2@1757712000.000000105                                                ● steps                   2/8
+    hashscan  hashscan.io/testnet/transaction/0.0.2@1757712000.000000105                ○ assertions              0/6
+
+                                                                                        Assertions ──────────────────
+                                                                                        ✓ 0  × 0  ○ 6
+   > Running token-flow... esc to cancel                                               
+ :::  
+ :::  
+
+ esc cancel run • tab focus run • ctrl+r scenarios • ctrl+p commands • ctrl+c quit • ctrl+g more

@@ -1,0 +1,31 @@
+
+ │ run token-flow --network mock                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+                                                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+   ● launch scenarios/token-flow.yaml F6(Ae!c11*77B7C Starting                          █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
+                                                                                        █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
+                                                                                        ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
+                                                                                        harness                v0.1.0
+                                                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+
+                                                                                        scenarios/token-flow.yaml
+                                                                                        scenarios/token-flow.yaml
+
+                                                                                        ◇  mock  operator 0.0.2
+
+                                                                                        Actors ──────────────────────
+                                                                                        None
+
+                                                                                        Progress ────────────────────
+                                                                                        ○ actors                  0/0
+                                                                                        ○ steps                   0/0
+                                                                                        ○ assertions              0/0
+
+                                                                                        Assertions ──────────────────
+                                                                                        ✓ 0  × 0  ○ 0
+
+
+   > Running token-flow... esc to cancel                                               
+ :::  
+ :::  
+
+ esc cancel run • tab focus run • ctrl+r scenarios • ctrl+p commands • ctrl+c quit • ctrl+g more

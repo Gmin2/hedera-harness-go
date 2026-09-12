@@ -1,0 +1,27 @@
+name: scheduled multisig payout
+description: a 2 of 3 treasury pays out through a schedule that executes on the second signature
+
+actors:
+  ann: {}
+  ben: { key: ed25519 }
+  cat: {}
+  vault: { threshold: 2, keys: [ann, ben, cat], hbar: 50 }
+  payee: { hbar: 1 }
+
+steps:
+  # one signer is not enough to move funds directly
+  - hbar.transfer: { from: vault, to: payee, amount: 5, signers: [ann], expect: INVALID_SIGNATURE }
+
+  - schedule.create:
+      as: payout
+      tx:
+        hbar.transfer: { from: vault, to: payee, amount: 5 }
+
+  - schedule.sign: { schedule: payout, signer: ann }
+  - schedule.executed: { schedule: payout, equals: false }
+
+  - schedule.sign: { schedule: payout, signer: cat }
+
+assert:
+  - schedule.executed: { schedule: payout }
+  - account.hbar: { account: payee, equals: 6 }

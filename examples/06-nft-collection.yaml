@@ -1,0 +1,30 @@
+name: nft collection
+description: mint an nft collection, sell one piece, check ownership and supply
+
+actors:
+  artist: { hbar: 20 }
+  collector: { max_auto_associations: 1 }
+
+steps:
+  - token.create:
+      as: art
+      name: Night Sky
+      symbol: SKY
+      type: nft
+      max_supply: 10
+      treasury: artist
+      admin_key: artist
+
+  - token.mint: { token: art, metadata: [ipfs://sky/1, ipfs://sky/2, ipfs://sky/3], supply_key: artist }
+  - token.transfer: { token: art, from: artist, to: collector, serial: 2 }
+
+  # the collector has no slot left for a second collection
+  - token.create: { as: other, name: Other, symbol: OTH, type: nft, treasury: artist }
+  - token.mint: { token: other, metadata: [x], supply_key: artist }
+  - token.transfer: { token: other, from: artist, to: collector, serial: 1, expect: NO_REMAINING_AUTOMATIC_ASSOCIATIONS }
+
+assert:
+  - nft.owner: { token: art, serial: 2, owner: collector }
+  - nft.owner: { token: art, serial: 1, owner: artist }
+  - token.supply: { token: art, equals: 3 }
+  - token.relationship: { account: collector, token: art, automatic: true }

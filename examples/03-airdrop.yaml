@@ -1,0 +1,47 @@
+name: airdrop claim reject cancel
+description: >
+  port of hedera-code-snippets/airdrop-claim-reject-cancel-hts-token-js-sdk
+  (158 lines of js plus 107 lines of helpers)
+
+actors:
+  treasury: { hbar: 5, max_auto_associations: 0 }
+  alice: { hbar: 1, max_auto_associations: -1 }
+  bob: { hbar: 1, max_auto_associations: 0 }
+  carol: { hbar: 1, max_auto_associations: 5 }
+  dave: { hbar: 1, max_auto_associations: 0 }
+
+steps:
+  - token.create:
+      as: drop
+      name: Airdrop Token
+      symbol: AT
+      initial_supply: 1000
+      max_supply: 1000
+      treasury: treasury
+      admin_key: treasury
+
+  - token.airdrop:
+      token: drop
+      from: treasury
+      recipients:
+        - { to: alice, amount: 1 }
+        - { to: bob, amount: 2 }
+        - { to: carol, amount: 3 }
+        - { to: dave, amount: 4 }
+
+  # alice and carol had free slots, bob and dave did not
+  - token.balance: { account: alice, token: drop, equals: 1 }
+  - token.balance: { account: carol, token: drop, equals: 3 }
+  - airdrop.pending: { receiver: bob, token: drop, amount: 2 }
+  - airdrop.pending: { receiver: dave, token: drop, amount: 4 }
+
+  - token.claim: { token: drop, from: treasury, to: bob }
+  - token.reject: { owner: carol, token: drop }
+  - token.cancel: { token: drop, from: treasury, to: dave }
+
+assert:
+  - token.balance: { account: bob, token: drop, equals: 2 }
+  - token.balance: { account: carol, token: drop, equals: 0 }
+  - token.balance: { account: dave, token: drop, equals: 0 }
+  - airdrop.pending: { receiver: dave, token: drop, exists: false }
+  - token.balance: { account: treasury, token: drop, equals: 997 }

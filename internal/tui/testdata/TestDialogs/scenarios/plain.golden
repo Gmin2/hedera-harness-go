@@ -1,0 +1,27 @@
+
+  ╱╱╱╱╱╱ █   █ █▀▀▀▀ █▀▀▀▄ █▀▀▀▀ █▀▀▀▄ ▄▀▀▀▄ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ █▀▀▀█ █▀▀▀  █   █ █▀▀▀  █▀▀▀▄ █▀▀▀█ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ ▀   ▀ ▀▀▀▀▀ ▀▀▀▀  ▀▀▀▀▀ ▀   ▀ ▀   ▀ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ harness                      v0.1.0 ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+
+  /work/hh-demo
+
+  ◇  mock ╭────────────────────────────────────────────────────────────────────╮
+    3 scen│ Run Scenario ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱ │
+          │                                                                    │
+  Scenario│ > Filter scenarios                                                 │────────
+          │                                                                    │
+  ● token-│ token-flow                                      8 steps · 6 checks │
+  ● topic-│ topic-submit                                    4 steps · 3 checks │
+  ● schedu│ scheduled-payout                                6 steps · 4 checks │
+          │                                                                    │
+          │ ↑/↓ choose • enter confirm • esc cancel                            │
+          ╰────────────────────────────────────────────────────────────────────╯
+
+
+
+   > Ready. Try run <scenario>, network <name> or ctrl+p                                 
+ :::  
+ :::  
+
+ enter run command • ctrl+r scenarios • ctrl+n network • ctrl+p commands • ctrl+c quit …

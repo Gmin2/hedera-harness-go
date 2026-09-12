@@ -1,0 +1,27 @@
+
+  HEDERA HARNESS ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱ token-flow • mock • steps 7/8 • ctrl+d open
+
+
+   ✓ topic.create news (memo=hh demo) 610ms
+
+    status    SUCCESS                                                                   
+    tx        0.0.2@1757712000.000000109                                                
+    hashscan  hashscan.io/testnet/transaction/0.0.2@1757712000.000000109                
+    news      0.0.1005                                                                  
+
+    INFO  waiting for the mirror node to catch up
+
+   ✓ topic.submit news (message=hello hedera) 380ms
+
+    status    SUCCESS                                                                   
+    tx        0.0.2@1757712000.000000110                                                
+    hashscan  hashscan.io/testnet/transaction/0.0.2@1757712000.000000110                
+
+   ● schedule.create payout (payer=bob, to=carol, amount=1) %4$6865EBf(c50A Submitting
+
+
+   > Running token-flow... esc to cancel                                                 
+ :::  
+ :::  
+
+ esc cancel run • tab focus run • ctrl+r scenarios • ctrl+d details • ctrl+p commands …

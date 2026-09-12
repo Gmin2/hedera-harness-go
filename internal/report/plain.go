@@ -1,0 +1,219 @@
+// Package report prints runs for terminals and machines.
+package report
+
+import (
+	"fmt"
+	"io"
+	"strings"
+	"sync"
+	"time"
+
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/Gmin2/hedera-harness-go/internal/event"
+)
+
+// palette follows the charmtone colors the tui uses
+var (
+	cPrimary = lipgloss.Color("#6B50FF")
+	cBase    = lipgloss.Color("#ECEBF0")
+	cMuted   = lipgloss.Color("#858392")
+	cSubtle  = lipgloss.Color("#605F6B")
+	cLine    = lipgloss.Color("#3A3943")
+	cGreen   = lipgloss.Color("#00FFB2")
+	cGreenBg = lipgloss.Color("#12C78F")
+	cRed     = lipgloss.Color("#EB4268")
+	cRedBg   = lipgloss.Color("#FF577D")
+	cBlue    = lipgloss.Color("#00A4FF")
+	cOrange  = lipgloss.Color("#FF985A")
+	cDark    = lipgloss.Color("#201F26")
+)
+
+var (
+	sBase    = lipgloss.NewStyle().Foreground(cBase)
+	sMuted   = lipgloss.NewStyle().Foreground(cMuted)
+	sSubtle  = lipgloss.NewStyle().Foreground(cSubtle)
+	sName    = lipgloss.NewStyle().Foreground(cBlue)
+	sOK      = lipgloss.NewStyle().Foreground(cGreen).SetString("✓")
+	sFail    = lipgloss.NewStyle().Foreground(cRed).SetString("×")
+	sSkip    = lipgloss.NewStyle().Foreground(cSubtle).SetString("○")
+	sDot     = lipgloss.NewStyle().Foreground(cGreenBg).SetString("●")
+	sLogo    = lipgloss.NewStyle().Foreground(cDark).Background(cPrimary).Bold(true).Padding(0, 1)
+	sPass    = lipgloss.NewStyle().Foreground(cDark).Background(cGreenBg).Bold(true).Padding(0, 1).SetString("PASS")
+	sFailTag = lipgloss.NewStyle().Foreground(cDark).Background(cRedBg).Bold(true).Padding(0, 1).SetString("FAIL")
+	sSkipTag = lipgloss.NewStyle().Foreground(cDark).Background(cSubtle).Bold(true).Padding(0, 1).SetString("SKIP")
+	sWarn    = lipgloss.NewStyle().Foreground(cOrange)
+)
+
+// Plain streams a run as readable lines. It is safe to use as an event.Sink.
+type Plain struct {
+	w     io.Writer
+	width int
+	mu    sync.Mutex
+
+	section string
+	started map[int]event.StepStarted
+}
+
+func NewPlain(w io.Writer, width int) *Plain {
+	if width <= 0 {
+		width = 100
+	}
+	return &Plain{w: w, width: min(width, 120), started: map[int]event.StepStarted{}}
+}
+
+func (p *Plain) Sink(e event.Event) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	switch e := e.(type) {
+	case event.RunStarted:
+		head := sLogo.Render("hh") + " " + sBase.Bold(true).Render(e.Scenario) +
+			sMuted.Render(fmt.Sprintf(" · %s · operator %s · run %s", e.Network, e.Operator, e.RunID))
+		p.println("")
+		p.println(" " + head)
+	case event.ActorReady:
+		p.enter("Actors")
+		line := fmt.Sprintf("   %s %s %s %s", sDot, pad(sName.Render(e.Name), 14), pad(sBase.Render(e.Account), 12), sMuted.Render(e.KeyType))
+		if e.Hbar != "" {
+			line += sMuted.Render(" · " + e.Hbar)
+		}
+		p.println(line)
+	case event.StepStarted:
+		p.started[e.Index] = e
+	case event.StepFinished:
+		p.enter("Steps")
+		p.step(e)
+	case event.AssertionFinished:
+		p.enter("Assertions")
+		p.assertion(e)
+	case event.Log:
+		style := sMuted
+		if e.Level != "info" {
+			style = sWarn
+		}
+		p.println("   " + style.Render("⋯ "+e.Msg))
+	case event.RunFinished:
+		p.finish(e)
+	}
+}
+
+func (p *Plain) enter(section string) {
+	if p.section == section {
+		return
+	}
+	p.section = section
+	p.println("")
+	rule := strings.Repeat("─", max(0, p.width-lipgloss.Width(section)-3))
+	p.println(" " + sSubtle.Render(section) + " " + lipgloss.NewStyle().Foreground(cLine).Render(rule))
+}
+
+func (p *Plain) step(e event.StepFinished) {
+	st := p.started[e.Index]
+	icon := sOK.String()
+	switch e.Status {
+	case event.Failed:
+		icon = sFail.String()
+	case event.Skipped:
+		icon = sSkip.String()
+	}
+	head := fmt.Sprintf("   %s %s", icon, sName.Render(e.Op))
+	if st.Target != "" {
+		head += " " + sBase.Render(st.Target)
+	}
+	if len(st.Params) > 0 {
+		var kv []string
+		for _, pr := range st.Params {
+			kv = append(kv, pr.Key+"="+pr.Value)
+		}
+		head += sSubtle.Render(" (" + strings.Join(kv, ", ") + ")")
+	}
+	if e.Elapsed > 0 {
+		head += sSubtle.Render(" " + short(e.Elapsed))
+	}
+	p.println(truncate(head, p.width))
+
+	var detail []string
+	switch {
+	case e.Status == event.Skipped:
+		detail = append(detail, sSubtle.Render("skipped after an earlier failure"))
+	case e.Status == event.Failed && e.Error != "":
+		detail = append(detail, lipgloss.NewStyle().Foreground(cRed).Render(e.Error))
+	case e.Expected != "" && e.Expected != "SUCCESS":
+		detail = append(detail, sMuted.Render("expected ")+sBase.Render(e.Receipt))
+	}
+	for _, ent := range e.Entities {
+		detail = append(detail, sMuted.Render(ent.Key+" = ")+sBase.Render(ent.Value))
+	}
+	if e.TxID != "" && e.Status != event.Skipped {
+		detail = append(detail, sSubtle.Render("tx "+e.TxID))
+	}
+	if len(detail) > 0 {
+		p.println(truncate("     "+strings.Join(detail, sSubtle.Render(" · ")), p.width))
+	}
+	if e.Link != "" {
+		p.println("     " + sSubtle.Hyperlink(e.Link).Render(e.Link))
+	}
+}
+
+func (p *Plain) assertion(e event.AssertionFinished) {
+	tag := sPass.String()
+	switch e.Status {
+	case event.Failed:
+		tag = sFailTag.String()
+	case event.Skipped:
+		tag = sSkipTag.String()
+	}
+	line := fmt.Sprintf("   %s %s %s", tag, pad(sBase.Render(e.Title), 30), pad(sMuted.Render(e.Expected), 22))
+	if e.Status != event.Skipped {
+		line += sMuted.Render(" actual ") + sBase.Render(e.Actual)
+	}
+	p.println(truncate(line, p.width))
+	if e.Status == event.Failed {
+		if e.Error != "" {
+			p.println("        " + lipgloss.NewStyle().Foreground(cRed).Render(e.Error))
+		}
+		if e.Source != "" {
+			p.println("        " + sSubtle.Render(fmt.Sprintf("%s (%d reads)", e.Source, e.Attempts)))
+		}
+	}
+}
+
+func (p *Plain) finish(e event.RunFinished) {
+	p.println("")
+	icon, word := sOK.String(), lipgloss.NewStyle().Foreground(cGreen).Render("passed")
+	if e.Status == event.Failed {
+		icon, word = sFail.String(), lipgloss.NewStyle().Foreground(cRed).Render("failed")
+	}
+	summary := fmt.Sprintf(" %s %s %s", icon, word, sMuted.Render(fmt.Sprintf("· %d/%d steps · %d/%d assertions · %s",
+		e.StepsOK, e.StepsOK+e.StepsFail, e.AssertOK, e.AssertOK+e.AssertFail, short(e.Elapsed))))
+	p.println(summary)
+	if e.Error != "" {
+		for _, l := range strings.Split(e.Error, "\n") {
+			p.println("   " + lipgloss.NewStyle().Foreground(cRed).Render(l))
+		}
+	}
+	p.println("")
+}
+
+func (p *Plain) println(s string) { lipgloss.Fprintln(p.w, s) }
+
+func pad(s string, w int) string {
+	if n := lipgloss.Width(s); n < w {
+		return s + strings.Repeat(" ", w-n)
+	}
+	return s
+}
+
+func truncate(s string, w int) string { return ansi.Truncate(s, w, "…") }
+
+func short(d time.Duration) string {
+	switch {
+	case d < time.Millisecond:
+		return "<1ms"
+	case d < time.Second:
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	return fmt.Sprintf("%.1fs", d.Seconds())
+}

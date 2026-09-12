@@ -1,0 +1,13 @@
+name: first transfer
+description: two fresh accounts and one hbar transfer, checked on the mirror node
+
+actors:
+  alice: {}
+  bob: {}
+
+steps:
+  - hbar.transfer: { from: alice, to: bob, amount: 2.5 }
+
+assert:
+  - account.hbar: { account: bob, equals: 12.5 }
+  - account.hbar: { account: alice, lte: 7.5 }
