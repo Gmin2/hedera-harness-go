@@ -187,3 +187,12 @@ func lookup(env *ops.Env, ref, what string) (string, error) {
 func tinybarsToHbar(t int64) string {
 	return strconv.FormatFloat(float64(t)/1e8, 'f', -1, 64) + " ℏ"
 }
+
+// Fields lists the yaml fields an assertion accepts.
+func Fields(name string) []string {
+	f, ok := registry[name]
+	if !ok {
+		return nil
+	}
+	return scenario.Fields(f())
+}

@@ -44,19 +44,25 @@ type Run struct {
 // New starts an empty run for the scenario at path. static freezes the
 // spinners.
 func New(sty *styles.Styles, command, path, network string, static bool) *Run {
-	r := &Run{
+	r := newRun(sty, path, network, static)
+	r.Command = command
+	r.items = append(r.items, &commandItem{sty: sty, text: command})
+	r.pending = &pendingItem{sty: sty, name: "launch", detail: path, anim: newSpinner(sty, static, path, "Starting")}
+	r.items = append(r.items, r.pending)
+	return r
+}
+
+// newRun is a run with no items yet. Judge runs inside an agent session
+// start this way, since the session draws their header.
+func newRun(sty *styles.Styles, path, network string, static bool) *Run {
+	return &Run{
 		sty:     sty,
 		static:  static,
-		Command: command,
 		Path:    path,
 		Network: network,
 		steps:   make(map[int]*stepItem),
 		asserts: make(map[int]*assertionItem),
 	}
-	r.items = append(r.items, &commandItem{sty: sty, text: command})
-	r.pending = &pendingItem{sty: sty, name: "launch", detail: path, anim: newSpinner(sty, static, path, "Starting")}
-	r.items = append(r.items, r.pending)
-	return r
 }
 
 // Apply folds one runner event into the run.

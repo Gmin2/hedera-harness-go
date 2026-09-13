@@ -97,6 +97,67 @@ type RunFinished struct {
 	Error      string        `json:"error,omitempty"`
 }
 
+// Agent events come from the generate and repair loop, where a coding agent
+// works and hh scenarios judge the result. Judge runs emit the run events above.
+
+type AgentStarted struct {
+	Attempt int    `json:"attempt"`
+	Agent   string `json:"agent"` // claude
+	Model   string `json:"model,omitempty"`
+	Prompt  string `json:"prompt"`
+	Repair  bool   `json:"repair"`
+	Dir     string `json:"dir"`
+}
+
+type AgentText struct {
+	Attempt int    `json:"attempt"`
+	Text    string `json:"text"`
+}
+
+type AgentTool struct {
+	Attempt int    `json:"attempt"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`    // Bash, Edit, Write, Read...
+	Summary string `json:"summary"` // the command or file path
+}
+
+type AgentToolResult struct {
+	Attempt int    `json:"attempt"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Output  string `json:"output"`
+	IsError bool   `json:"is_error"`
+}
+
+type AgentFinished struct {
+	Attempt   int           `json:"attempt"`
+	Status    Status        `json:"status"`
+	SessionID string        `json:"session_id,omitempty"`
+	Model     string        `json:"model,omitempty"`
+	Turns     int           `json:"turns"`
+	CostUSD   float64       `json:"cost_usd"`
+	Result    string        `json:"result,omitempty"`
+	Error     string        `json:"error,omitempty"`
+	Elapsed   time.Duration `json:"elapsed_ns"`
+}
+
+// JudgeFinished sums up the judge scenarios after one agent attempt.
+type JudgeFinished struct {
+	Attempt  int      `json:"attempt"`
+	Status   Status   `json:"status"`
+	Passed   int      `json:"passed"`
+	Failed   int      `json:"failed"`
+	Findings []string `json:"findings,omitempty"`
+}
+
+type LoopFinished struct {
+	Status   Status        `json:"status"`
+	Attempts int           `json:"attempts"`
+	CostUSD  float64       `json:"cost_usd"`
+	Elapsed  time.Duration `json:"elapsed_ns"`
+	Error    string        `json:"error,omitempty"`
+}
+
 func (RunStarted) event()        {}
 func (ActorReady) event()        {}
 func (StepStarted) event()       {}
@@ -105,6 +166,13 @@ func (AssertionStarted) event()  {}
 func (AssertionFinished) event() {}
 func (Log) event()               {}
 func (RunFinished) event()       {}
+func (AgentStarted) event()      {}
+func (AgentText) event()         {}
+func (AgentTool) event()         {}
+func (AgentToolResult) event()   {}
+func (AgentFinished) event()     {}
+func (JudgeFinished) event()     {}
+func (LoopFinished) event()      {}
 
 // Sink receives events. It must not block for long.
 type Sink func(Event)

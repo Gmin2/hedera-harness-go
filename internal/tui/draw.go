@@ -108,8 +108,8 @@ func (m *Model) relayout() {
 		}
 	}
 	m.view.SetSize(max(0, m.layout.main.Dx()), max(0, m.layout.main.Dy()))
-	if m.run != nil {
-		m.view.Refresh(m.run.Items())
+	if a := m.active(); a != nil {
+		m.view.Refresh(a.Items())
 	}
 }
 

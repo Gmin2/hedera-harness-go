@@ -55,6 +55,12 @@ func Events(path, network string) []event.Event {
 // Script builds the fake run: three actors, eight steps with one expected
 // failure and one real failure, six assertions with one failing.
 func Script(path, network string) []Beat {
+	return script(path, network, "7f3a2c", true)
+}
+
+// script builds the run above. With broken unset the scheduled payout is
+// signed and everything passes, which is how the agent demo repairs it.
+func script(path, network, runID string, broken bool) []Beat {
 	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	operator := "0.0.2"
 	if network == "testnet" {
@@ -96,7 +102,7 @@ func Script(path, network string) []Beat {
 	}
 
 	add(200*time.Millisecond, event.RunStarted{
-		RunID:      "7f3a2c",
+		RunID:      runID,
 		Scenario:   name,
 		Path:       path,
 		Network:    network,
@@ -149,6 +155,10 @@ func Script(path, network string) []Beat {
 			receipt: "INVALID_SIGNATURE", expected: "SUCCESS", status: event.Failed,
 			err: "bob did not sign the schedule create transaction", took: 700 * time.Millisecond},
 	}
+	if !broken {
+		last := &steps[len(steps)-1]
+		last.receipt, last.expected, last.status, last.err = "SUCCESS", "", event.Passed, ""
+	}
 	for i, s := range steps {
 		add(250*time.Millisecond, event.StepStarted{Index: i, Op: s.op, Target: s.target, Params: s.params})
 		if i == 5 {
@@ -185,6 +195,10 @@ func Script(path, network string) []Beat {
 			source: "/api/v1/schedules?account.id=0.0.1002", status: event.Failed, attempts: 3,
 			err: "no schedule created by 0.0.1002 after 3 attempts", took: 1500 * time.Millisecond},
 	}
+	if !broken {
+		last := &checks[len(checks)-1]
+		last.actual, last.status, last.attempts, last.err = "executed", event.Passed, 1, ""
+	}
 	for i, c := range checks {
 		add(150*time.Millisecond, event.AssertionStarted{Index: i, Kind: c.kind, Title: c.title})
 		add(c.took, event.AssertionFinished{
@@ -194,14 +208,21 @@ func Script(path, network string) []Beat {
 		})
 	}
 
-	add(200*time.Millisecond, event.RunFinished{
-		RunID:      "7f3a2c",
+	finished := event.RunFinished{
+		RunID:      runID,
 		Status:     event.Failed,
 		StepsOK:    7,
 		StepsFail:  1,
 		AssertOK:   5,
 		AssertFail: 1,
 		Elapsed:    11600 * time.Millisecond,
-	})
+	}
+	if !broken {
+		finished.Status = event.Passed
+		finished.StepsOK, finished.StepsFail = 8, 0
+		finished.AssertOK, finished.AssertFail = 6, 0
+		finished.Elapsed = 10900 * time.Millisecond
+	}
+	add(200*time.Millisecond, finished)
 	return beats
 }

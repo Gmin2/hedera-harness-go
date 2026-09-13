@@ -11,16 +11,16 @@
                                                                                       │ run 7f3a2c · scenarios/token…
    ✓ token.create gold (supply=1000, decimals=2, treasury=alice) 900ms                │
                                                                                       │ ◇  testnet  operator 0.0.4512
-    status    SUCCESS                                                                 │
-    tx        0.0.4512@1757712000.000000104                                           │ Actors ──────────────────────
-    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000104           │ ✓ alice 0.0.1001
-    gold      0.0.1004                                                                │ ✓ bob   0.0.1002
+     status    SUCCESS                                                                │
+     tx        0.0.4512@1757712000.000000104                                          │ Actors ──────────────────────
+     hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000104          │ ✓ alice 0.0.1001
+     gold      0.0.1004                                                               │ ✓ bob   0.0.1002
                                                                                       │ ✓ carol 0.0.1003
    ✓ token.associate bob (token=gold) 450ms                                           │
                                                                                       │ Progress ────────────────────
-    status    SUCCESS                                                                 │ ✓ actors                  3/3
-    tx        0.0.4512@1757712000.000000105                                           │ × steps                   8/8
-    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000105           │ × assertions              6/6
+     status    SUCCESS                                                                │ ✓ actors                  3/3
+     tx        0.0.4512@1757712000.000000105                                          │ × steps                   8/8
+     hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000105          │ × assertions              6/6
                                                                                       │
                                                                                         Assertions ──────────────────
  ────────────────────────────────────────────────────────────────────────────────────── ✓ 5  × 1  ○ 0

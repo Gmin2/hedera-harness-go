@@ -57,6 +57,42 @@ assert:
 - `expect:` turns a failure code into the expected outcome
 - assertions can sit between steps or in `assert:` at the end
 
+## agent mode
+
+Like [hedera-dev/hedera-harness](https://github.com/hedera-dev/hedera-harness), hh can put a coding agent to work and decide itself whether the work passed. It drives the `claude` cli (your existing claude code login, no api key), streams every message and tool call, then runs the judge scenarios. A failing judge sends its findings back into the same claude session as a repair prompt.
+
+```sh
+hh agent "write stablecoin.yaml: token USDX with 2 decimals and a kyc key. alice gets kyc and 250.00 USDX, a transfer to bob without kyc must fail" \
+  --judge stablecoin.yaml --model haiku
+```
+
+```
+ Attempt 1 · claude ───────────────────────────────────────────
+  │ write stablecoin.yaml: token USDX with 2 decimals ...
+   ✓ Write stablecoin.yaml
+   ✓ Bash hh check stablecoin.yaml
+   ✓ Bash hh run stablecoin.yaml --network mock --json
+   ◇ claude-haiku-4-5 · 4 turns · $0.07 · 45.7s
+
+  hh  stablecoin kyc test · mock
+   ✓ token.create usdx (symbol=USDX, supply=50000, decimals=2, kyc=issuer)
+   ✓ token.transfer usdx (from=issuer, to=bob, amount=25000)
+     expected ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN
+    PASS  alice usdx balance   = 25000   actual 25000
+
+  PASS  judge passed 1/1 scenarios
+ ✓ done in 1 attempt(s) · $0.07 · 45.8s
+```
+
+| | hedera-harness | hh agent |
+|---|---|---|
+| agent | claude or cursor cli, stream-json | claude cli, stream-json |
+| who decides pass | harness validators, chain checks by an llm reading curl output | hh scenarios evaluated in code against the mirror node |
+| agent feedback | after the whole attempt | the agent can run `hh check` and `hh run` on the mock in milliseconds while it works |
+| repair | new prompt from findings | findings go back into the same session with `--resume` |
+
+The agent gets a system prompt generated from the op and assertion registries, so the scenario reference it sees is always the one the code accepts. In the tui, type a prompt instead of a command, and `judge <scenario>` picks what it must pass.
+
 ## networks
 
 | mode | what it is | needs |
@@ -80,6 +116,7 @@ The mock charges no fees so hbar assertions are exact. Write `gte`/`lte` for acc
 |---|---|
 | `hh` | interactive ui: pick a scenario (ctrl+r), switch network (ctrl+n), watch it run |
 | `hh run <file\|dir>...` | run scenarios, exit 1 on any failure. `--json` for ci, `--keep-going`, `--timeout` |
+| `hh agent <prompt> --judge <file>` | let claude code do a task, judge it with scenarios, repair until it passes |
 | `hh check <file\|dir>...` | validate scenarios offline: unknown fields, unknown names, steps that use a name before it exists |
 | `hh doctor` | preflight a network and operator before spending anything |
 | `hh ops` | list step ops and assertions |
@@ -131,6 +168,7 @@ go run ./cmd/hh-tui-demo
 
 ## roadmap
 
-- agent loop: generate and repair a scaffold-hbar feature with a coding agent, judged by hh scenarios instead of an llm
+- agent loop on scaffold-hbar apps: judge contract and frontend features with json-rpc assertions, not only native services
+- more agent clis (codex, cursor) behind the same stream parser
 - more services: file service, contracts through the json-rpc relay, allowances
 - mock fidelity tests that run the same scenario on mock and solo and diff the results

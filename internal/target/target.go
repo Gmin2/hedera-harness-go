@@ -1,4 +1,5 @@
-package cli
+// Package target opens a network for a mode, starting a mock when needed.
+package target
 
 import (
 	"context"
@@ -8,9 +9,9 @@ import (
 	"github.com/Gmin2/hedera-harness-go/internal/network"
 )
 
-// openTarget connects to a network. For mock it starts a fresh in process
+// Open connects to a network. For mock it starts a fresh in process
 // hedera first, so every run begins from an empty ledger.
-func openTarget(ctx context.Context, mode network.Mode) (*network.Target, func(), error) {
+func Open(ctx context.Context, mode network.Mode) (*network.Target, func(), error) {
 	if mode != network.Mock {
 		cfg, err := network.FromEnv(mode)
 		if err != nil {

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"github.com/Gmin2/hedera-harness-go/internal/target"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 
+	"github.com/Gmin2/hedera-harness-go/internal/agent"
 	"github.com/Gmin2/hedera-harness-go/internal/event"
 	"github.com/Gmin2/hedera-harness-go/internal/network"
 	"github.com/Gmin2/hedera-harness-go/internal/runner"
@@ -55,6 +57,8 @@ func runTUI(cmd *cobra.Command) error {
 		Scenarios: scenarios,
 		NoAnim:    os.Getenv("HH_NO_ANIM") != "",
 		Launch:    launch,
+		Agent:     runAgent(cwd),
+		AgentName: "claude",
 	})
 }
 
@@ -67,16 +71,36 @@ func launch(ctx context.Context, path, net string, sink event.Sink) error {
 	if err != nil {
 		return err
 	}
-	target, closeTarget, err := openTarget(ctx, mode)
+	t, closeTarget, err := target.Open(ctx, mode)
 	if err != nil {
 		return err
 	}
 	defer closeTarget()
-	rep := runner.Run(ctx, target, sc, runner.Defaults(mode), sink)
+	rep := runner.Run(ctx, t, sc, runner.Defaults(mode), sink)
 	if rep.Error != "" && ctx.Err() != nil {
 		return ctx.Err()
 	}
 	return nil
+}
+
+// runAgent starts the claude loop from the tui, judged on the selected network.
+func runAgent(dir string) func(ctx context.Context, prompt string, judges []string, net string, sink event.Sink) error {
+	return func(ctx context.Context, prompt string, judges []string, net string, sink event.Sink) error {
+		mode, err := network.ParseMode(net)
+		if err != nil {
+			return err
+		}
+		return agent.Loop(ctx, agent.Options{
+			Prompt:  prompt,
+			Dir:     dir,
+			Judges:  judges,
+			Network: mode,
+			Model:   os.Getenv("HH_AGENT_MODEL"),
+			HH:      hhPath(),
+			Agent:   agent.Claude{},
+			Open:    target.Open,
+		}, sink)
+	}
 }
 
 func operatorHint(mode network.Mode) string {

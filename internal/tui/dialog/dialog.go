@@ -35,6 +35,8 @@ type (
 		Path      string
 		Confirmed bool
 	}
+	// ActionJudge adds a scenario to the judges of the agent loop.
+	ActionJudge struct{ Path string }
 	// ActionNetwork selects a network.
 	ActionNetwork struct{ Name string }
 	// ActionCommand runs a palette command by id.

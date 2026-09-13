@@ -1,0 +1,118 @@
+package cli
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
+	"github.com/charmbracelet/x/term"
+	"github.com/spf13/cobra"
+
+	"github.com/Gmin2/hedera-harness-go/internal/agent"
+	"github.com/Gmin2/hedera-harness-go/internal/event"
+	"github.com/Gmin2/hedera-harness-go/internal/report"
+	"github.com/Gmin2/hedera-harness-go/internal/target"
+)
+
+func agentCmd() *cobra.Command {
+	var (
+		judges      []string
+		dir         string
+		model       string
+		maxAttempts int
+		asJSON      bool
+		claudeBin   string
+	)
+	cmd := &cobra.Command{
+		Use:   "agent <prompt>",
+		Short: "Let claude code do a task and judge the result with hh scenarios",
+		Long: `hh agent runs the claude cli on a prompt, streams what it does, then runs the
+judge scenarios. When a judge fails, the failing steps and assertions go back to
+the same claude session as a repair prompt, until the judge passes or attempts
+run out. Uses your existing claude code login.`,
+		Example: `  hh agent "write examples/stablecoin.yaml: a token with kyc and a 1% fractional fee" --judge examples/stablecoin.yaml
+  hh agent "fix the airdrop scenario" --judge examples/03-airdrop.yaml --max-attempts 2
+  echo "add a scheduled payout scenario" | hh agent --judge payout.yaml`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			prompt := strings.TrimSpace(strings.Join(args, " "))
+			if prompt == "" && !term.IsTerminal(os.Stdin.Fd()) {
+				b, _ := io.ReadAll(os.Stdin)
+				prompt = strings.TrimSpace(string(b))
+			}
+			if prompt == "" {
+				return errors.New("give the agent a prompt: hh agent \"...\"")
+			}
+			mode, err := networkFlag(cmd, "")
+			if err != nil {
+				return err
+			}
+			absDir, err := filepath.Abs(dir)
+			if err != nil {
+				return err
+			}
+
+			var sink event.Sink
+			if asJSON {
+				sink = jsonLines(cmd.OutOrStdout())
+			} else {
+				width := 100
+				if w, _, err := term.GetSize(os.Stdout.Fd()); err == nil {
+					width = w
+				}
+				sink = report.NewPlain(cmd.OutOrStdout(), width).Sink
+			}
+
+			err = agent.Loop(cmd.Context(), agent.Options{
+				Prompt:      prompt,
+				Dir:         absDir,
+				Judges:      judges,
+				Network:     mode,
+				MaxAttempts: maxAttempts,
+				Model:       model,
+				HH:          hhPath(),
+				Agent:       agent.Claude{Command: claudeBin},
+				Open:        target.Open,
+			}, sink)
+			if err != nil {
+				cmd.SilenceErrors = true
+				return err
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringArrayVarP(&judges, "judge", "j", nil, "scenario that must pass, repeatable")
+	cmd.Flags().StringVar(&dir, "dir", ".", "directory the agent works in")
+	cmd.Flags().StringVarP(&model, "model", "m", "", "claude model, eg sonnet or opus (default: your claude code default)")
+	cmd.Flags().IntVar(&maxAttempts, "max-attempts", 3, "agent attempts including repairs")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "print events as json lines")
+	cmd.Flags().StringVar(&claudeBin, "claude", "claude", "path to the claude cli")
+	return cmd
+}
+
+// hhPath is how the agent should call hh: this binary when it is a real
+// install, otherwise plain hh on PATH (go run builds into a temp dir).
+func hhPath() string {
+	exe, err := os.Executable()
+	if err != nil || strings.Contains(exe, string(filepath.Separator)+"go-build") {
+		return "hh"
+	}
+	return exe
+}
+
+func jsonLines(w io.Writer) event.Sink {
+	var mu sync.Mutex
+	enc := json.NewEncoder(w)
+	return func(e event.Event) {
+		mu.Lock()
+		defer mu.Unlock()
+		_ = enc.Encode(struct {
+			Type  string      `json:"type"`
+			Event event.Event `json:"event"`
+		}{fmt.Sprintf("%T", e)[len("event."):], e})
+	}
+}
