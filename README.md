@@ -1,7 +1,7 @@
 # hh
 
 <p>
-  <img src="demo/assets/hh-header.png" width="560" alt="hh" />
+  <img src="demo/assets/hh-header.png" width="300" alt="hh" />
   <br>
   <a href="https://github.com/Gmin2/hedera-harness-go/releases"><img src="https://img.shields.io/github/v/release/Gmin2/hedera-harness-go" alt="Latest Release"></a>
   <a href="https://github.com/Gmin2/hedera-harness-go/actions/workflows/ci.yml"><img src="https://github.com/Gmin2/hedera-harness-go/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
