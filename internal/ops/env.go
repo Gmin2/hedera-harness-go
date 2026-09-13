@@ -7,6 +7,7 @@ import (
 
 	hiero "github.com/hiero-ledger/hiero-sdk-go/v2/sdk"
 
+	"github.com/Gmin2/hedera-harness-go/internal/keys"
 	"github.com/Gmin2/hedera-harness-go/internal/network"
 )
 
@@ -46,6 +47,9 @@ func NewEnv(t *network.Target) *Env {
 			Key:      t.OperatorKey.PublicKey(),
 			SignKeys: []hiero.PrivateKey{t.OperatorKey},
 			KeyType:  "operator",
+		}
+		if keys.Kind(t.OperatorKey) == keys.ECDSA {
+			e.actors["operator"].EvmAlias = t.OperatorKey.PublicKey().ToEvmAddress()
 		}
 	} else {
 		k, _ := hiero.PrivateKeyGenerateEd25519()
