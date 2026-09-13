@@ -150,7 +150,26 @@ type AgentFinished struct {
 	Elapsed   time.Duration `json:"elapsed_ns"`
 }
 
-// JudgeFinished sums up the judge scenarios after one agent attempt.
+// CheckStarted and CheckFinished wrap a shell command used as a judge,
+// like a build or a test suite, next to the judge scenarios.
+type CheckStarted struct {
+	Attempt int    `json:"attempt"`
+	Name    string `json:"name"`
+	Command string `json:"command"`
+}
+
+type CheckFinished struct {
+	Attempt  int           `json:"attempt"`
+	Name     string        `json:"name"`
+	Command  string        `json:"command"`
+	Status   Status        `json:"status"`
+	ExitCode int           `json:"exit_code"`
+	Output   string        `json:"output,omitempty"` // last lines of stdout and stderr
+	Error    string        `json:"error,omitempty"`
+	Elapsed  time.Duration `json:"elapsed_ns"`
+}
+
+// JudgeFinished sums up the judge scenarios and checks after one agent attempt.
 type JudgeFinished struct {
 	Attempt  int      `json:"attempt"`
 	Status   Status   `json:"status"`
@@ -183,6 +202,8 @@ func (AgentText) event()         {}
 func (AgentTool) event()         {}
 func (AgentToolResult) event()   {}
 func (AgentFinished) event()     {}
+func (CheckStarted) event()      {}
+func (CheckFinished) event()     {}
 func (JudgeFinished) event()     {}
 func (LoopFinished) event()      {}
 

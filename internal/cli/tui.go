@@ -32,7 +32,21 @@ func runTUI(cmd *cobra.Command) error {
 	}
 	cwd, _ := os.Getwd()
 
-	found, _ := scenario.Discover(".")
+	var found []*scenario.Scenario
+	roots := []string{"."}
+	if proj != nil && len(proj.Scenarios) > 0 {
+		roots = proj.Scenarios
+	}
+	seen := map[string]bool{}
+	for _, root := range roots {
+		list, _ := collect([]string{root})
+		for _, sc := range list {
+			if !seen[sc.Path] {
+				seen[sc.Path] = true
+				found = append(found, sc)
+			}
+		}
+	}
 	var scenarios []tui.Scenario
 	for _, sc := range found {
 		steps, assertions := runner.Counts(sc)
@@ -50,7 +64,7 @@ func runTUI(cmd *cobra.Command) error {
 		networks = append(networks, string(m))
 	}
 
-	return tui.Run(cmd.Context(), tui.Options{
+	opts := tui.Options{
 		Version:   Version,
 		Cwd:       home(cwd),
 		Network:   string(mode),
@@ -61,7 +75,15 @@ func runTUI(cmd *cobra.Command) error {
 		Launch:    launch,
 		Agent:     runAgent(cwd),
 		AgentName: "claude",
-	})
+	}
+	if proj != nil {
+		opts.Project = proj.Path
+		opts.Judges = proj.Judge.Scenarios
+		for _, c := range proj.Judge.Checks {
+			opts.Checks = append(opts.Checks, tui.Check{Name: c.Name, Run: c.Run})
+		}
+	}
+	return tui.Run(cmd.Context(), opts)
 }
 
 func launch(ctx context.Context, path, net string, sink event.Sink) error {
@@ -85,7 +107,8 @@ func launch(ctx context.Context, path, net string, sink event.Sink) error {
 	return nil
 }
 
-// runAgent runs one prompt of a tui conversation, judged on the selected network.
+// runAgent runs one prompt of a tui conversation, judged on the selected
+// network. Settings come from hh.yaml, HH_AGENT_* variables override them.
 func runAgent(dir string) func(ctx context.Context, req tui.AgentRequest, sink event.Sink) error {
 	turns := 0
 	return func(ctx context.Context, req tui.AgentRequest, sink event.Sink) error {
@@ -97,25 +120,44 @@ func runAgent(dir string) func(ctx context.Context, req tui.AgentRequest, sink e
 			turns = 0
 		}
 		turns++
-		var maxCost float64
-		if v := os.Getenv("HH_AGENT_MAX_COST"); v != "" {
-			fmt.Sscanf(v, "%g", &maxCost)
-		}
-		return agent.Loop(ctx, agent.Options{
+
+		o := agent.Options{
 			Prompt:         req.Prompt,
 			Dir:            dir,
 			Judges:         req.Judges,
 			Network:        mode,
-			Model:          os.Getenv("HH_AGENT_MODEL"),
 			HH:             hhPath(),
 			Agent:          agent.Claude{},
 			Open:           target.Open,
 			SessionID:      req.SessionID,
 			Turn:           turns,
-			MaxCostUSD:     maxCost,
 			AttemptTimeout: 20 * time.Minute,
 			Stream:         true,
-		}, sink)
+		}
+		for _, c := range req.Checks {
+			timeout := time.Duration(0)
+			for _, pc := range projectChecks() {
+				if pc.Run == c.Run {
+					timeout = pc.Timeout
+				}
+			}
+			o.Checks = append(o.Checks, agent.Check{Name: c.Name, Run: c.Run, Timeout: timeout})
+		}
+		if proj != nil {
+			o.Model = proj.Agent.Model
+			o.MaxCostUSD = proj.Agent.MaxCost
+			o.MaxAttempts = proj.Agent.MaxAttempts
+			if proj.Agent.Timeout.Duration > 0 {
+				o.AttemptTimeout = proj.Agent.Timeout.Duration
+			}
+		}
+		if v := os.Getenv("HH_AGENT_MODEL"); v != "" {
+			o.Model = v
+		}
+		if v := os.Getenv("HH_AGENT_MAX_COST"); v != "" {
+			fmt.Sscanf(v, "%g", &o.MaxCostUSD)
+		}
+		return agent.Loop(ctx, o, sink)
 	}
 }
 

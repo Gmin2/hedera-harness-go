@@ -169,8 +169,8 @@ func TestLoopGivesUp(t *testing.T) {
 }
 
 func TestSystemPromptListsEveryOp(t *testing.T) {
-	p := SystemPrompt("/bin/hh", []string{"a.yaml"}, "mock")
-	for _, want := range []string{"token.airdrop:", "schedule.executed:", "/bin/hh run <file.yaml>", "- a.yaml"} {
+	p := SystemPrompt("/bin/hh", []string{"a.yaml"}, []Check{{Run: "go vet ./..."}}, "mock")
+	for _, want := range []string{"token.airdrop:", "schedule.executed:", "/bin/hh run <file.yaml>", "- a.yaml", "- go vet ./..."} {
 		if !strings.Contains(p, want) {
 			t.Errorf("system prompt missing %q", want)
 		}
@@ -276,5 +276,40 @@ func TestLoopAttemptTimeout(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "longer than") || fin.Status != event.Failed || fin.SessionID != "chat-1" {
 		t.Fatalf("err %v fin %+v", err, fin)
+	}
+}
+
+func TestLoopRepairsFailingCheck(t *testing.T) {
+	dir := t.TempDir()
+	// the fake agent writes transfer.yaml; the check wants a marker file the
+	// repair prompt tells it about
+	agent := &fakeAgent{dir: dir, writes: []string{"actors:\n  a: {}\nassert:\n  - account.hbar: { account: a, equals: 10 }\n"}}
+	attempts := 0
+	var checks []event.CheckFinished
+	err := Loop(context.Background(), Options{
+		Prompt: "x", Dir: dir, Network: network.Mock, MaxAttempts: 3,
+		Judges: []string{"transfer.yaml"},
+		Checks: []Check{{Name: "marker", Run: "echo checking $HH_TEST_VAR; test -f done || { echo missing marker >&2; touch done; exit 3; }"}},
+		Env:    []string{"HH_TEST_VAR=wallet-0.0.2"},
+		Agent:  agent, Open: target.Open,
+	}, func(e event.Event) {
+		switch e := e.(type) {
+		case event.CheckFinished:
+			checks = append(checks, e)
+		case event.AgentStarted:
+			attempts++
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 2 || len(checks) != 2 {
+		t.Fatalf("attempts %d checks %+v", attempts, checks)
+	}
+	if checks[0].Status != event.Failed || checks[0].ExitCode != 3 || !strings.Contains(checks[0].Output, "missing marker") || !strings.Contains(checks[0].Output, "wallet-0.0.2") {
+		t.Fatalf("first check: %+v", checks[0])
+	}
+	if !strings.Contains(agent.prompts[1], `check "marker"`) || !strings.Contains(agent.prompts[1], "missing marker") {
+		t.Fatalf("repair prompt should carry the check output:\n%s", agent.prompts[1])
 	}
 }

@@ -1,0 +1,27 @@
+
+  HEDERA HARNESS ╱╱╱╱╱ claude • mock • turn 1 judging • 1 judge • 1 check • ctrl+d close
+ ╭──────────────────────────────────────────────────────────────────────────────────────╮
+ │ add a scheduled payout from bob to carol and make sure the schedule executes         │
+ │ claude · claude-sonnet-4-5                                                           │
+ │                                                                                      │
+ │ ◇  mock  operator 0.0.2  hh.yaml                                                     │
+ │                                                                                      │
+ │ Agent ────────────────────  Judges ───────────────────  Progress ─────────────────   │
+ │ ● turn 1           judging  ○ token-flow                No judge run yet             │
+ │   $0.12 this conversation                                                            │
+ │                             Checks ───────────────────                               │
+ │                             ● go test ./...                                          │
+ │                                                                               v0.1.0 │
+ │                                                                                      │
+ ╰──────────────────────────────────────────────────────────────────────────────────────╯
+
+
+
+
+
+
+   > claude is working... esc to cancel                                                  
+ :::  
+ :::  
+ ────────────────────────────────────────────────────────────────────────────────────────
+ esc cancel claude • tab focus run • ctrl+r scenarios • ctrl+d close details …

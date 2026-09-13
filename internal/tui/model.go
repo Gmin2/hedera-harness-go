@@ -95,6 +95,7 @@ type Model struct {
 	ticking bool
 
 	judges []string // scenario paths the agent loop is checked with
+	checks []Check  // shell commands the agent loop is checked with
 }
 
 // activity is what the run list shows: a scenario run or an agent session.
@@ -136,6 +137,20 @@ func newModel(ctx context.Context, opts Options) *Model {
 		network:  opts.Network,
 		operator: opts.Operator,
 		view:     run.NewView(),
+	}
+	for _, path := range opts.Judges {
+		if path != "" && !slices.Contains(m.judges, path) {
+			m.judges = append(m.judges, path)
+		}
+	}
+	for _, c := range opts.Checks {
+		if c.Run = strings.TrimSpace(c.Run); c.Run == "" {
+			continue
+		}
+		if c.Name = strings.TrimSpace(c.Name); c.Name == "" {
+			c.Name = c.Run
+		}
+		m.checks = append(m.checks, c)
 	}
 	m.editor = newEditor(m.sty)
 	m.help = help.New()
@@ -338,8 +353,12 @@ func (m *Model) submit(line string) tea.Cmd {
 	arg = strings.TrimSpace(arg)
 
 	if name, ok := strings.CutPrefix(cmd, "/"); ok {
+		// check is slash only, "check the payout works" is a prompt
+		if name == "check" {
+			return m.checkCommand(arg)
+		}
 		if !slices.Contains(commandWords, name) {
-			return m.showToast(toastError, fmt.Sprintf("unknown command %q, try /run, /judge, /network, /new, /clear or /quit", cmd))
+			return m.showToast(toastError, fmt.Sprintf("unknown command %q, try /run, /judge, /check, /network, /new, /clear or /quit", cmd))
 		}
 		return m.command(name, arg)
 	}
@@ -514,11 +533,12 @@ func (m *Model) requestAgent(prompt string) tea.Cmd {
 	}
 	req := AgentRequest{
 		Prompt:    prompt,
-		Judges:    slices.Clone(m.judges),
 		Network:   m.network,
 		SessionID: m.session.SessionID(),
+		Judges:    slices.Clone(m.judges),
+		Checks:    slices.Clone(m.checks),
 	}
-	m.session.Send(prompt, m.network, m.selectedJudges())
+	m.session.Send(prompt, m.network, m.selectedJudges(), m.selectedChecks())
 	m.view.ScrollToBottom()
 	m.state = stateRun
 	m.detailsOpen = false
@@ -557,6 +577,49 @@ func (m *Model) clearJudges() tea.Cmd {
 	m.judges = nil
 	m.updatePlaceholder()
 	return m.showToast(toastSuccess, "judges cleared")
+}
+
+// checkCommand handles /check <command> and /check off.
+func (m *Model) checkCommand(arg string) tea.Cmd {
+	switch arg {
+	case "":
+		return m.showToast(toastWarn, "add a check with /check <shell command>, /check off clears them")
+	case "off", "clear":
+		return m.clearChecks()
+	}
+	return m.addCheck(Check{Name: arg, Run: arg})
+}
+
+func (m *Model) addCheck(c Check) tea.Cmd {
+	for _, have := range m.checks {
+		if have.Run == c.Run {
+			return m.showToast(toastWarn, c.Name+" is already a check")
+		}
+	}
+	m.checks = append(m.checks, c)
+	m.updatePlaceholder()
+	msg := c.Name + " added as a check"
+	if m.running() {
+		msg += ", used from the next prompt"
+	}
+	return m.showToast(toastSuccess, msg)
+}
+
+func (m *Model) clearChecks() tea.Cmd {
+	if len(m.checks) == 0 {
+		return m.showToast(toastWarn, "no checks set")
+	}
+	m.checks = nil
+	m.updatePlaceholder()
+	return m.showToast(toastSuccess, "checks cleared")
+}
+
+func (m *Model) checkNames() []string {
+	names := make([]string, len(m.checks))
+	for i, c := range m.checks {
+		names[i] = c.Name
+	}
+	return names
 }
 
 func (m *Model) judgeNames() []string {
@@ -670,7 +733,7 @@ func (m *Model) updatePlaceholder() {
 		m.editor.Placeholder = "Running " + m.scenarioName(m.run.Path) + "... esc to cancel"
 	case m.run != nil:
 		m.editor.Placeholder = "Run finished. Try run <scenario> again, or clear"
-	case m.opts.Agent != nil && len(m.judges) == 0:
+	case m.opts.Agent != nil && len(m.judges) == 0 && len(m.checks) == 0:
 		m.editor.Placeholder = "Ready. Ask " + agent + " for a change, add a judge <scenario> or run <scenario>"
 	case m.opts.Agent != nil:
 		m.editor.Placeholder = "Ready. Ask " + agent + " for a change, or run <scenario>"
@@ -687,6 +750,9 @@ func (m *Model) openCommands() {
 	}
 	if len(m.judges) > 0 {
 		items = append(items, dialog.Item{Title: "Clear judges", Value: "clear-judges"})
+	}
+	if len(m.checks) > 0 {
+		items = append(items, dialog.Item{Title: "Clear checks", Info: "/check off", Value: "clear-checks"})
 	}
 	if m.opts.Agent != nil {
 		items = append(items, dialog.Item{Title: "New conversation", Info: "/new", Value: "new"})
@@ -803,6 +869,8 @@ func (m *Model) handleAction(a dialog.Action) tea.Cmd {
 			return m.openScenarios(true)
 		case "clear-judges":
 			return m.clearJudges()
+		case "clear-checks":
+			return m.clearChecks()
 		case "network":
 			m.openNetworks()
 		case "cancel":

@@ -28,11 +28,10 @@ func runCmd() *cobra.Command {
 		timeout   time.Duration
 	)
 	cmd := &cobra.Command{
-		Use:   "run <scenario.yaml|dir>...",
-		Short: "Run scenarios and check their assertions",
-		Args:  cobra.MinimumNArgs(1),
+		Use:   "run [scenario.yaml|dir]...",
+		Short: "Run scenarios and check their assertions (default: the judges in hh.yaml)",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			scenarios, err := collect(args)
+			scenarios, err := collect(defaultScenarios(args))
 			if err != nil {
 				return err
 			}
@@ -95,11 +94,13 @@ func runCmd() *cobra.Command {
 
 func checkCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "check <scenario.yaml|dir>...",
+		Use:   "check [scenario.yaml|dir]...",
 		Short: "Validate scenarios without touching a network",
-		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			scenarios, err := collect(args)
+			if len(args) == 0 && proj != nil && len(proj.Scenarios) > 0 {
+				args = proj.Scenarios
+			}
+			scenarios, err := collect(defaultScenarios(args))
 			if err != nil {
 				return err
 			}
@@ -125,8 +126,22 @@ func checkCmd() *cobra.Command {
 	}
 }
 
+// defaultScenarios falls back to hh.yaml judges, then its scenario dirs.
+func defaultScenarios(args []string) []string {
+	if len(args) > 0 || proj == nil {
+		return args
+	}
+	if len(proj.Judge.Scenarios) > 0 {
+		return proj.Judge.Scenarios
+	}
+	return proj.Scenarios
+}
+
 // collect loads files and every scenario under directories.
 func collect(args []string) ([]*scenario.Scenario, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("give a scenario file or directory, or run hh init to create hh.yaml")
+	}
 	var out []*scenario.Scenario
 	for _, a := range args {
 		info, err := os.Stat(a)

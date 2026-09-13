@@ -1,0 +1,31 @@
+
+     actors:                                                                            ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+       bob: { hbar: 50 }                                                                ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+       carol: { hbar: 10 }                                                              █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
+     steps:                                                                             █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
+     … (7 lines hidden)                                                                 ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
+                                                                                        harness                v0.1.0
+   The scenario schedules an hbar transfer from bob to carol and expects it to          ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+   execute. I'll add a payout helper that creates the schedule and wire it into the
+   treasury command.                                                                    add a scheduled payout from
+                                                                                        bob to carol and make sure …
+   ✓ Write internal/payout/payout.go                                                    claude · claude-sonnet-4-5
+
+     File created successfully at: internal/payout/payout.go                            ◇  mock  operator 0.0.2
+
+   ✓ Bash go test ./internal/payout/...                                                 Agent ───────────────────────
+                                                                                        ● turn 1              judging
+     ok      github.com/acme/treasury/internal/payout    0.412s                           $0.12 this conversation
+
+   The payout helper is in place and its unit tests pass.                               Judges ──────────────────────
+                                                                                        ○ token-flow
+   ◇ claude-sonnet-4-5 · 7 turns · $0.12 · 41s ───────────────────────────────────────
+                                                                                        Checks ──────────────────────
+   ● check go test ./... 1c3E6$E~~2=)~D7 Running                                        ● go test ./...
+
+ ──────────────────────────────────────────────────────────────────────────────────────
+   > claude is working... esc to cancel                                                
+ :::  
+ :::  
+ ──────────────────────────────────────────────────────────────────────────────────────
+ esc cancel claude • tab focus run • ctrl+r scenarios • ctrl+p commands • ctrl+c quit • ctrl+g more
