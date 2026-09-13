@@ -21,3 +21,5 @@ assert:
   - topic.messages: { topic: news, count: 2 }
   - topic.messages: { topic: news, sequence: 1, equals: first post }
   - topic.messages: { topic: news, contains: second }
+  # recompute the running hash of every message, same check works on testnet
+  - topic.messages: { topic: news, verify_chain: true }

@@ -135,7 +135,7 @@ The mock charges no fees so hbar assertions are exact. Write `gte`/`lte` for acc
 
 steps: `hbar.transfer`, `account.update`, `token.create` (fungible, nft, keys, fixed/fractional/royalty fees), `token.associate`, `token.mint`, `token.transfer`, `token.airdrop` (with `recipients`), `token.claim`, `token.cancel`, `token.reject`, `token.grant_kyc`, `token.revoke_kyc`, `token.freeze`, `token.unfreeze`, `token.pause`, `token.unpause`, `topic.create`, `topic.submit`, `schedule.create` (wraps a transfer, token transfer, mint, associate or topic submit), `schedule.sign`
 
-assertions: `account.hbar`, `token.balance`, `token.supply`, `token.relationship` (associated, kyc, freeze, automatic), `token.paused`, `nft.owner`, `topic.messages` (count, contains, sequence), `schedule.executed`, `airdrop.pending`
+assertions: `account.hbar`, `token.balance`, `token.supply`, `token.relationship` (associated, kyc, freeze, automatic), `token.paused`, `nft.owner`, `topic.messages` (count, contains, sequence, `verify_chain` recomputes the v3 running hash of every message), `schedule.executed` (also checks the inner transaction result, so a schedule that ran but reverted does not pass), `airdrop.pending`
 
 numeric assertions take `equals`, `not`, `gt`, `gte`, `lt`, `lte`.
 

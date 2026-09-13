@@ -28,6 +28,8 @@ type Env struct {
 	actors   map[string]*Actor
 	entities map[string]entity
 	nextFake int64
+	// scheduledTx maps a schedule name to the id its inner transaction runs as
+	scheduledTx map[string]string
 }
 
 type entity struct {
@@ -36,7 +38,7 @@ type entity struct {
 }
 
 func NewEnv(t *network.Target) *Env {
-	e := &Env{Target: t, actors: map[string]*Actor{}, entities: map[string]entity{}, nextFake: 9000}
+	e := &Env{Target: t, actors: map[string]*Actor{}, entities: map[string]entity{}, nextFake: 9000, scheduledTx: map[string]string{}}
 	if t != nil {
 		e.actors["operator"] = &Actor{
 			Name:     "operator",
@@ -163,6 +165,12 @@ func (e *Env) Schedule(ref string) (hiero.ScheduleID, error) {
 		return hiero.ScheduleID{}, err
 	}
 	return hiero.ScheduleIDFromString(id)
+}
+
+// ScheduledTx returns the transaction id a named schedule executes as.
+func (e *Env) ScheduledTx(name string) (string, bool) {
+	id, ok := e.scheduledTx[name]
+	return id, ok
 }
 
 // Lookup turns any name into its id string, for display and assertions.
