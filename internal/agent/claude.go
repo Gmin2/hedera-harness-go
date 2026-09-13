@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -94,6 +95,7 @@ func (c Claude) Run(ctx context.Context, req Request, attempt int, sink event.Si
 	start := time.Now()
 	cmd := exec.CommandContext(ctx, c.command(), c.args(req)...)
 	cmd.Dir = req.Dir
+	cmd.Env = agentEnv(os.Environ())
 	setProcessGroup(cmd)
 
 	stdout, err := cmd.StdoutPipe()
@@ -135,6 +137,22 @@ func (c Claude) Run(ctx context.Context, req Request, attempt int, sink event.Si
 		return res, fmt.Errorf("%s ended without a result", c.command())
 	}
 	return res, nil
+}
+
+// agentEnv drops private keys from the environment the agent runs in. hh
+// loads .env into its own process, and the agent has a shell, so without
+// this it could read the operator key. hh signs, the agent never does.
+func agentEnv(environ []string) []string {
+	out := make([]string, 0, len(environ))
+	for _, kv := range environ {
+		name, _, _ := strings.Cut(kv, "=")
+		upper := strings.ToUpper(name)
+		if strings.Contains(upper, "PRIVATE_KEY") || strings.Contains(upper, "OPERATOR_KEY") || upper == "HH_WALLET_KEY" || upper == "MNEMONIC" {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return out
 }
 
 // streamParser turns claude stream-json lines into events.

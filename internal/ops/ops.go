@@ -75,13 +75,6 @@ func Decode(s scenario.Step) (Op, error) {
 // Settings returns the common fields of a decoded op.
 func Settings(op Op) Common { return *op.common() }
 
-func expected(c *Common) string {
-	if c.Expect == "" {
-		return "SUCCESS"
-	}
-	return strings.ToUpper(c.Expect)
-}
-
 func param(k string, v any) event.Param {
 	return event.Param{Key: k, Value: fmt.Sprint(v)}
 }

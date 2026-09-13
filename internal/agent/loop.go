@@ -2,7 +2,10 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -67,6 +70,9 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 	start := time.Now()
 	total := 0.0
 	system := SystemPrompt(o.HH, o.Judges, o.Checks, string(o.Network))
+	// judges that exist before the agent starts are the contract, it may not
+	// rewrite them to pass. judges it is asked to create stay editable.
+	pinned := pinJudges(o.Dir, o.Judges)
 	prompt, session := o.Prompt, o.SessionID
 
 	finish := func(status event.Status, attempts int, err error) error {
@@ -142,7 +148,7 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 		if len(o.Judges) == 0 && len(o.Checks) == 0 {
 			return finish(event.Passed, attempt, nil)
 		}
-		findings := judge(ctx, o, attempt, sink)
+		findings := judge(ctx, o, attempt, pinned, sink)
 		if ctx.Err() != nil {
 			return finish(event.Failed, attempt, ctx.Err())
 		}
@@ -157,7 +163,7 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 // judge runs the checks, then every judge scenario, and returns what went
 // wrong in a form the agent can act on. Checks go first: they are usually a
 // build, and scenarios mean little when the code does not compile.
-func judge(ctx context.Context, o Options, attempt int, sink event.Sink) []string {
+func judge(ctx context.Context, o Options, attempt int, pinned map[string]string, sink event.Sink) []string {
 	var findings []string
 	passed, failed := 0, 0
 	env := o.Env
@@ -187,6 +193,11 @@ func judge(ctx context.Context, o Options, attempt int, sink event.Sink) []strin
 		}
 	}
 	for _, path := range o.Judges {
+		if want, ok := pinned[path]; ok && fileHash(resolve(o.Dir, path)) != want {
+			failed++
+			findings = append(findings, fmt.Sprintf("%s: this judge scenario was changed during the run. restore it with git and fix the code instead, judges are not yours to edit", path))
+			continue
+		}
 		fs := judgeOne(ctx, o, path, sink)
 		if len(fs) == 0 {
 			passed++
@@ -257,6 +268,25 @@ func Findings(path string, rep *runner.Report) []string {
 		out = append(out, fmt.Sprintf("%s: %s", path, msg))
 	}
 	return out
+}
+
+func pinJudges(dir string, judges []string) map[string]string {
+	out := map[string]string{}
+	for _, j := range judges {
+		if h := fileHash(resolve(dir, j)); h != "" {
+			out[j] = h
+		}
+	}
+	return out
+}
+
+func fileHash(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 func resolve(dir, path string) string {

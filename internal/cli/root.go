@@ -30,9 +30,10 @@ Networks:
   mock     an in process fake hedera, no docker, no keys, milliseconds per step
   local    solo (or hiero local node with HH_LOCAL_PROFILE=localnode)
   testnet  real testnet, needs HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY`,
-		Example: `  hh run examples/token-kyc.yaml
-  hh run examples/ --network testnet
-  hh check examples/
+		Example: `  hh init && hh run
+  hh run examples/02-token-kyc.yaml
+  hh run examples/ --network testnet --wallet burner
+  hh agent "add a scheduled payout scenario" --judge scenarios/payout.yaml
   hh doctor --network testnet`,
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

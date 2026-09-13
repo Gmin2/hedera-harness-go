@@ -313,3 +313,47 @@ func TestLoopRepairsFailingCheck(t *testing.T) {
 		t.Fatalf("repair prompt should carry the check output:\n%s", agent.prompts[1])
 	}
 }
+
+func TestAgentEnvDropsKeys(t *testing.T) {
+	env := agentEnv([]string{
+		"PATH=/bin", "HOME=/home/me", "ANTHROPIC_MODEL=x",
+		"HEDERA_OPERATOR_ID=0.0.5", "HEDERA_OPERATOR_KEY=302e", "OPERATOR_KEY=0xabc",
+		"PRIVATE_KEY=0x1", "MY_PRIVATE_KEY=0x2", "HH_OPERATOR_KEY_HEX=0x3", "__RUNTIME_DEPLOYER_PRIVATE_KEY=0x4",
+	})
+	joined := strings.Join(env, " ")
+	for _, leak := range []string{"302e", "0xabc", "0x1", "0x2", "0x3", "0x4"} {
+		if strings.Contains(joined, "="+leak) {
+			t.Fatalf("key %s reached the agent env: %s", leak, joined)
+		}
+	}
+	for _, keep := range []string{"PATH=/bin", "HEDERA_OPERATOR_ID=0.0.5", "ANTHROPIC_MODEL=x"} {
+		if !strings.Contains(joined, keep) {
+			t.Fatalf("%s should stay: %s", keep, joined)
+		}
+	}
+}
+
+// tamperAgent weakens an existing judge instead of doing the work.
+type tamperAgent struct{ dir string }
+
+func (a tamperAgent) Run(ctx context.Context, req Request, attempt int, sink event.Sink) (Result, error) {
+	os.WriteFile(filepath.Join(a.dir, "judge.yaml"), []byte("actors:\n  a: {}\nassert:\n  - account.hbar: { account: a, gte: 0 }\n"), 0o644)
+	return Result{SessionID: "s"}, nil
+}
+
+func TestLoopRejectsEditedJudge(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "judge.yaml"), []byte("actors:\n  a: {}\nassert:\n  - account.hbar: { account: a, equals: 99 }\n"), 0o644)
+	var judges []event.JudgeFinished
+	err := Loop(context.Background(), Options{
+		Prompt: "x", Dir: dir, Judges: []string{"judge.yaml"}, Network: network.Mock,
+		MaxAttempts: 1, Agent: tamperAgent{dir}, Open: target.Open,
+	}, func(e event.Event) {
+		if j, ok := e.(event.JudgeFinished); ok {
+			judges = append(judges, j)
+		}
+	})
+	if err == nil || len(judges) != 1 || judges[0].Status != event.Failed || !strings.Contains(strings.Join(judges[0].Findings, " "), "changed during the run") {
+		t.Fatalf("an edited judge must fail: err %v judges %+v", err, judges)
+	}
+}

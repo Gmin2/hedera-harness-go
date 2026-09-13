@@ -61,6 +61,14 @@ run out. Uses your existing claude code login.`,
 				return err
 			}
 
+			if !cmd.Flags().Changed("model") && os.Getenv("HH_AGENT_MODEL") != "" {
+				model = os.Getenv("HH_AGENT_MODEL")
+				cmd.Flags().Set("model", model)
+			}
+			if !cmd.Flags().Changed("max-cost") && os.Getenv("HH_AGENT_MAX_COST") != "" {
+				cmd.Flags().Set("max-cost", os.Getenv("HH_AGENT_MAX_COST"))
+			}
+
 			// hh.yaml fills whatever the flags leave out
 			loopChecks := projectChecks()
 			if len(checks) > 0 {

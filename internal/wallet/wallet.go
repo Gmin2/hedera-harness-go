@@ -44,8 +44,8 @@ func (c Choice) fund(mode network.Mode) float64 {
 		return c.FundHbar
 	}
 	if mode == network.Testnet {
-		// token creates alone cost several hbar on testnet
-		return 50
+		// the burner also funds every actor, and token creates cost several hbar
+		return 120
 	}
 	return 100
 }

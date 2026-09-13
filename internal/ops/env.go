@@ -31,6 +31,8 @@ type Env struct {
 	nextFake int64
 	// scheduledTx maps a schedule name to the id its inner transaction runs as
 	scheduledTx map[string]string
+	// supplyKeys maps a token name to the actor holding its supply key
+	supplyKeys map[string]string
 }
 
 type entity struct {
@@ -39,7 +41,7 @@ type entity struct {
 }
 
 func NewEnv(t *network.Target) *Env {
-	e := &Env{Target: t, actors: map[string]*Actor{}, entities: map[string]entity{}, nextFake: 9000, scheduledTx: map[string]string{}}
+	e := &Env{Target: t, actors: map[string]*Actor{}, entities: map[string]entity{}, nextFake: 9000, scheduledTx: map[string]string{}, supplyKeys: map[string]string{}}
 	if t != nil {
 		e.actors["operator"] = &Actor{
 			Name:     "operator",

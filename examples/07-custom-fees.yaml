@@ -27,7 +27,7 @@ steps:
   # treasury is exempt from its own fees
   - token.transfer: { token: coin, from: issuer, to: alice, amount: 1000 }
 
-  # alice pays 0.5 hbar, bob receives 100 less than sent
+  # alice pays 0.5 hbar, bob receives 10 percent less than sent
   - token.transfer: { token: coin, from: alice, to: bob, amount: 500 }
 
 assert:

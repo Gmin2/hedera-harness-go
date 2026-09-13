@@ -123,7 +123,7 @@ func Load(dir string) (*Config, error) {
 	switch c.Wallet.Kind {
 	case "", "default", "burner":
 	default:
-		return nil, fmt.Errorf("%s: wallet %q must be default or burner (import keys in the tui or with --wallet-key)", path, c.Wallet.Kind)
+		return nil, fmt.Errorf("%s: wallet %q must be default or burner (import keys in the tui with ctrl+w)", path, c.Wallet.Kind)
 	}
 	for i, ch := range c.Judge.Checks {
 		if strings.TrimSpace(ch.Run) == "" {

@@ -167,18 +167,44 @@ func (o *tokenCreate) Build(env *Env) (*Tx, error) {
 	if adminSigner == "none" {
 		adminSigner = ""
 	}
+	// the network wants custom fee collectors to sign the token create
+	defaults := []string{o.Treasury, adminSigner}
+	for _, f := range o.CustomFees {
+		switch {
+		case f.Fixed != nil:
+			defaults = append(defaults, actorOnly(env, f.Fixed.Collector))
+		case f.Fractional != nil:
+			defaults = append(defaults, actorOnly(env, f.Fractional.Collector))
+		case f.Royalty != nil:
+			defaults = append(defaults, actorOnly(env, f.Royalty.Collector))
+		}
+	}
 	return &Tx{
 		Tx:           tx,
-		Signers:      signers(&o.Common, o.Treasury, adminSigner),
+		Signers:      signers(&o.Common, defaults...),
 		Declares:     o.As,
 		DeclaresKind: "token",
 		Bind: func(env *Env, r hiero.TransactionReceipt) ([]event.Param, error) {
 			if r.TokenID == nil {
 				return nil, fmt.Errorf("receipt has no token id")
 			}
+			if ref := actorOnly(env, supplyKey); ref != "" {
+				env.supplyKeys[o.As] = ref
+			}
 			return []event.Param{param(o.As, r.TokenID)}, env.Bind(o.As, "token", r.TokenID.String())
 		},
 	}, nil
+}
+
+// actorOnly keeps a reference only when it names an actor hh holds keys for.
+func actorOnly(env *Env, ref string) string {
+	if ref == "" || ref == "none" {
+		return ""
+	}
+	if _, err := env.Actor(ref); err != nil {
+		return ""
+	}
+	return ref
 }
 
 func (o *tokenCreate) buildFees(env *Env) ([]hiero.Fee, error) {
@@ -303,6 +329,18 @@ type tokenMint struct {
 }
 
 func (o *tokenMint) Target() string { return o.Token }
+
+// supplySigner is the actor named in the step, else the supply key the token
+// was created with, else the operator.
+func (o *tokenMint) supplySigner(env *Env) string {
+	if o.Signer != "" {
+		return o.Signer
+	}
+	if ref, ok := env.supplyKeys[o.Token]; ok {
+		return ref
+	}
+	return "operator"
+}
 func (o *tokenMint) Params() []event.Param {
 	if len(o.Metadata) > 0 {
 		return []event.Param{param("nfts", len(o.Metadata))}
@@ -332,7 +370,7 @@ func (o *tokenMint) Build(env *Env) (*Tx, error) {
 	}
 	return &Tx{
 		Tx:      tx,
-		Signers: signers(&o.Common, orOperator(o.Signer)),
+		Signers: signers(&o.Common, o.supplySigner(env)),
 		Bind: func(env *Env, r hiero.TransactionReceipt) ([]event.Param, error) {
 			if len(r.SerialNumbers) > 0 {
 				var s []string

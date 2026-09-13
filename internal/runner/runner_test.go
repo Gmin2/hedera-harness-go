@@ -186,3 +186,24 @@ assert:
 		t.Fatalf("expecting the failure explicitly should pass:\n%s", describe(rep))
 	}
 }
+
+// An nft collection gets the treasury as supply key, so minting without
+// naming the key must sign with the treasury, not the operator.
+func TestNftMintSignsWithSupplyKey(t *testing.T) {
+	sc, err := scenario.Parse([]byte(`
+actors:
+  artist: {}
+steps:
+  - token.create: { as: art, name: Art, symbol: ART, type: nft, treasury: artist }
+  - token.mint: { token: art, metadata: [one, two] }
+assert:
+  - token.supply: { token: art, equals: 2 }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep := runner.Run(context.Background(), mockTarget(t), sc, runner.Defaults(network.Mock), nil)
+	if rep.Status != event.Passed {
+		t.Fatal(describe(rep))
+	}
+}
