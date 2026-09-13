@@ -24,7 +24,9 @@ jobs:
           path: demo/run.tape
       - name: render the rest
         run: |
-          find / -name "*.gif" -newer go.mod 2>/dev/null | grep -v proc | head
+          which ffmpeg ttyd vhs; ffmpeg -version | head -1
+          for d in plain theme hide; do vhs .github/vhs-debug/$d.tape; done
+          ls -la *.gif || echo "no debug gifs"
           for t in hero agent check init; do
             vhs demo/$t.tape; echo "vhs $t exit $?"
           done
