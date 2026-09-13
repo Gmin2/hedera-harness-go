@@ -5,3 +5,4 @@ tmp/
 *.out
 /hedera-harness-go
 demo/out/
+.DS_Store
