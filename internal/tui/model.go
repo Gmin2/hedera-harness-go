@@ -87,11 +87,34 @@ type Model struct {
 	operator string
 
 	run     *run.Run
+	session *run.Session
 	view    *run.View
 	runGen  int
 	cancel  context.CancelFunc
 	last    *lastRun
 	ticking bool
+
+	judges []string // scenario paths the agent loop is checked with
+}
+
+// activity is what the run list shows: a scenario run or an agent session.
+type activity interface {
+	Items() []run.Item
+	Apply(event.Event)
+	End(error)
+	Spinning() bool
+	Advance()
+	Done() bool
+}
+
+func (m *Model) active() activity {
+	switch {
+	case m.session != nil:
+		return m.session
+	case m.run != nil:
+		return m.run
+	}
+	return nil
 }
 
 func newModel(ctx context.Context, opts Options) *Model {
@@ -100,6 +123,9 @@ func newModel(ctx context.Context, opts Options) *Model {
 	}
 	if opts.Network == "" {
 		opts.Network = opts.Networks[0]
+	}
+	if opts.AgentName == "" {
+		opts.AgentName = "agent"
 	}
 	m := &Model{
 		ctx:      ctx,
@@ -138,25 +164,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 
 	case eventMsg:
-		if msg.gen == m.runGen && m.run != nil {
+		if msg.gen == m.runGen && m.active() != nil {
 			m.applyEvent(msg.ev)
 		}
 
 	case event.Event:
 		// Events sent straight to the program belong to the current run.
-		if m.run != nil {
+		if m.active() != nil {
 			m.applyEvent(msg)
 		}
 
 	case launchDoneMsg:
-		if msg.gen == m.runGen && m.run != nil {
+		if msg.gen == m.runGen && m.active() != nil {
 			m.finishRun(msg.err)
 		}
 
 	case animTickMsg:
 		m.ticking = false
-		if m.run != nil && m.run.Spinning() {
-			m.run.Advance()
+		if a := m.active(); a != nil && a.Spinning() {
+			a.Advance()
 		}
 
 	case clearToastMsg:
@@ -197,7 +223,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.relayout()
-	if m.run != nil && m.run.Spinning() && !m.ticking && !m.opts.NoAnim {
+	if a := m.active(); a != nil && a.Spinning() && !m.ticking && !m.opts.NoAnim {
 		m.ticking = true
 		cmds = append(cmds, tea.Tick(anim.FrameInterval(), func(time.Time) tea.Msg { return animTickMsg{} }))
 	}
@@ -222,7 +248,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.openCommands()
 		return nil
 	case key.Matches(msg, k.Scenarios):
-		return m.openScenarios()
+		return m.openScenarios(false)
 	case key.Matches(msg, k.Network):
 		m.openNetworks()
 		return nil
@@ -300,7 +326,9 @@ func (m *Model) setFocus(f uiFocus) {
 	}
 }
 
-// submit runs one line typed into the editor.
+// submit runs one line typed into the editor. A line is a command when it
+// starts with a command word and has at most one argument. Anything else is
+// a prompt for the agent, when there is one.
 func (m *Model) submit(line string) tea.Cmd {
 	if line == "" {
 		return nil
@@ -308,16 +336,32 @@ func (m *Model) submit(line string) tea.Cmd {
 	cmd, arg, _ := strings.Cut(line, " ")
 	arg = strings.TrimSpace(arg)
 
+	if m.opts.Agent != nil && !m.isCommand(cmd, arg) {
+		return m.requestAgent(line)
+	}
+
 	switch cmd {
 	case "run":
 		if arg == "" {
-			return m.openScenarios()
+			return m.openScenarios(false)
 		}
 		path, ok := m.resolveScenario(arg)
 		if !ok {
 			return m.showToast(toastError, fmt.Sprintf("no scenario named %q", arg))
 		}
 		return m.requestRun(path, false)
+	case "judge":
+		switch arg {
+		case "":
+			return m.openScenarios(true)
+		case "off", "clear":
+			return m.clearJudges()
+		}
+		path, ok := m.resolveScenario(arg)
+		if !ok {
+			return m.showToast(toastError, fmt.Sprintf("no scenario named %q", arg))
+		}
+		return m.addJudge(path)
 	case "network":
 		if arg == "" {
 			m.openNetworks()
@@ -336,11 +380,30 @@ func (m *Model) submit(line string) tea.Cmd {
 	return m.showToast(toastError, fmt.Sprintf("unknown command %q, try run, network, clear or quit", cmd))
 }
 
+// isCommand decides whether a line is a command or a prompt for the agent.
+// Scenario names can have spaces, so run and judge also count when the rest
+// of the line names a known scenario.
+func (m *Model) isCommand(cmd, arg string) bool {
+	switch cmd {
+	case "run", "judge":
+		if !strings.ContainsAny(arg, " \t\n") {
+			return true
+		}
+		_, ok := m.resolveScenario(arg)
+		return ok
+	case "network":
+		return !strings.ContainsAny(arg, " \t\n")
+	case "clear", "quit", "exit":
+		return arg == ""
+	}
+	return false
+}
+
 // resolveScenario matches by name, then path, then file name. Anything that
 // looks like a yaml path is passed through for the runner to judge.
 func (m *Model) resolveScenario(arg string) (string, bool) {
 	for _, s := range m.opts.Scenarios {
-		if s.Name == arg || s.Path == arg {
+		if strings.EqualFold(s.Name, arg) || s.Path == arg {
 			return s.Path, true
 		}
 	}
@@ -366,7 +429,8 @@ func (m *Model) scenarioName(path string) string {
 }
 
 func (m *Model) running() bool {
-	return m.run != nil && !m.run.Done()
+	a := m.active()
+	return a != nil && !a.Done()
 }
 
 func (m *Model) requestRun(path string, confirmed bool) tea.Cmd {
@@ -390,6 +454,7 @@ func (m *Model) launch(path string) tea.Cmd {
 	gen := m.runGen
 
 	m.run = run.New(m.sty, "run "+m.scenarioName(path)+" --network "+m.network, path, m.network, m.opts.NoAnim)
+	m.session = nil
 	m.view = run.NewView()
 	m.state = stateRun
 	m.detailsOpen = false
@@ -406,18 +471,83 @@ func (m *Model) launch(path string) tea.Cmd {
 	}
 }
 
+// requestAgent starts the agent loop for prompt.
+func (m *Model) requestAgent(prompt string) tea.Cmd {
+	if m.running() {
+		return m.showToast(toastWarn, "already busy, esc cancels it")
+	}
+	ctx, cancel := context.WithCancel(m.ctx)
+	m.cancel = cancel
+	m.runGen++
+	gen := m.runGen
+
+	judges := make([]run.Judge, len(m.judges))
+	for i, path := range m.judges {
+		judges[i] = run.Judge{Name: m.scenarioName(path), Path: path}
+	}
+	m.session = run.NewSession(m.sty, m.opts.AgentName, prompt, m.network, judges, m.opts.NoAnim)
+	m.run = nil
+	m.view = run.NewView()
+	m.state = stateRun
+	m.detailsOpen = false
+	m.updatePlaceholder()
+
+	agent, send, network := m.opts.Agent, m.send, m.network
+	paths := slices.Clone(m.judges)
+	return func() tea.Msg {
+		err := agent(ctx, prompt, paths, network, func(ev event.Event) {
+			if send != nil {
+				send(eventMsg{gen: gen, ev: ev})
+			}
+		})
+		return launchDoneMsg{gen: gen, err: err}
+	}
+}
+
+func (m *Model) addJudge(path string) tea.Cmd {
+	name := m.scenarioName(path)
+	if slices.Contains(m.judges, path) {
+		return m.showToast(toastWarn, name+" is already a judge")
+	}
+	m.judges = append(m.judges, path)
+	m.updatePlaceholder()
+	msg := name + " added as a judge"
+	if m.running() {
+		msg += ", used from the next prompt"
+	}
+	return m.showToast(toastSuccess, msg)
+}
+
+func (m *Model) clearJudges() tea.Cmd {
+	if len(m.judges) == 0 {
+		return m.showToast(toastWarn, "no judges set")
+	}
+	m.judges = nil
+	m.updatePlaceholder()
+	return m.showToast(toastSuccess, "judges cleared")
+}
+
+func (m *Model) judgeNames() []string {
+	names := make([]string, len(m.judges))
+	for i, path := range m.judges {
+		names[i] = m.scenarioName(path)
+	}
+	return names
+}
+
 func (m *Model) applyEvent(ev event.Event) {
 	if e, ok := ev.(event.RunStarted); ok && e.Operator != "" {
 		m.operator = e.Operator
 	}
-	m.run.Apply(ev)
-	if m.run.Done() {
+	a := m.active()
+	a.Apply(ev)
+	if a.Done() {
 		m.updatePlaceholder()
 	}
 }
 
 func (m *Model) finishRun(err error) {
-	m.run.End(err)
+	m.active().End(err)
 	if m.cancel != nil {
 		m.cancel()
 		m.cancel = nil
@@ -433,6 +563,9 @@ func (m *Model) cancelRun() {
 
 func (m *Model) cancelRunWithToast() tea.Cmd {
 	m.cancelRun()
+	if m.session != nil {
+		return m.showToast(toastWarn, "canceling "+m.session.Agent)
+	}
 	return m.showToast(toastWarn, "canceling "+m.run.Name())
 }
 
@@ -440,10 +573,14 @@ func (m *Model) clearRun() tea.Cmd {
 	if m.running() {
 		return m.showToast(toastWarn, "cannot clear while a scenario is running")
 	}
-	if m.run != nil {
-		m.rememberRun()
+	switch {
+	case m.session != nil:
+		m.rememberRun(m.session.Current())
+	case m.run != nil:
+		m.rememberRun(m.run)
 	}
 	m.run = nil
+	m.session = nil
 	m.view = run.NewView()
 	m.state = stateLanding
 	m.detailsOpen = false
@@ -452,16 +589,16 @@ func (m *Model) clearRun() tea.Cmd {
 	return nil
 }
 
-func (m *Model) rememberRun() {
-	res := m.run.Result()
-	if res == nil {
+func (m *Model) rememberRun(r *run.Run) {
+	if r == nil || r.Result() == nil {
 		return
 	}
-	_, _, steps := m.run.StepCounts()
-	_, _, asserts := m.run.AssertionCounts()
+	res := r.Result()
+	_, _, steps := r.StepCounts()
+	_, _, asserts := r.AssertionCounts()
 	m.last = &lastRun{
-		name:    m.run.Name(),
-		network: m.run.Network,
+		name:    r.Name(),
+		network: r.Network,
 		result:  *res,
 		steps:   steps,
 		asserts: asserts,
@@ -480,11 +617,20 @@ func (m *Model) setNetwork(name string) tea.Cmd {
 }
 
 func (m *Model) updatePlaceholder() {
+	agent := m.opts.AgentName
 	switch {
+	case m.session != nil && m.running():
+		m.editor.Placeholder = agent + " is working... esc to cancel"
+	case m.session != nil:
+		m.editor.Placeholder = "Loop finished. Send another prompt, run <scenario> or clear"
 	case m.running():
 		m.editor.Placeholder = "Running " + m.scenarioName(m.run.Path) + "... esc to cancel"
 	case m.run != nil:
 		m.editor.Placeholder = "Run finished. Try run <scenario> again, or clear"
+	case m.opts.Agent != nil && len(m.judges) == 0:
+		m.editor.Placeholder = "Ready. Ask " + agent + " for a change, add a judge <scenario> or run <scenario>"
+	case m.opts.Agent != nil:
+		m.editor.Placeholder = "Ready. Ask " + agent + " for a change, or run <scenario>"
 	default:
 		m.editor.Placeholder = "Ready. Try run <scenario>, network <name> or ctrl+p"
 	}
@@ -494,9 +640,17 @@ func (m *Model) openCommands() {
 	items := []dialog.Item{
 		{Title: "Run scenario", Info: "ctrl+r", Value: "run"},
 		{Title: "Switch network", Info: "ctrl+n", Value: "network"},
+		{Title: "Use scenario as judge", Value: "judge"},
+	}
+	if len(m.judges) > 0 {
+		items = append(items, dialog.Item{Title: "Clear judges", Value: "clear-judges"})
 	}
 	if m.running() {
-		items = append(items, dialog.Item{Title: "Cancel run", Info: "esc", Value: "cancel"})
+		title := "Cancel run"
+		if m.session != nil {
+			title = "Cancel " + m.opts.AgentName
+		}
+		items = append(items, dialog.Item{Title: title, Info: "esc", Value: "cancel"})
 	}
 	if m.state == stateRun && !m.running() {
 		items = append(items, dialog.Item{Title: "Clear run", Value: "clear"})
@@ -518,26 +672,33 @@ func (m *Model) openCommands() {
 	}))
 }
 
-func (m *Model) openScenarios() tea.Cmd {
+// openScenarios opens the scenario picker. With judge set the pick is added
+// to the judges instead of run.
+func (m *Model) openScenarios(judge bool) tea.Cmd {
 	if len(m.opts.Scenarios) == 0 {
 		return m.showToast(toastWarn, "no scenarios found")
 	}
 	items := make([]dialog.Item, len(m.opts.Scenarios))
 	for i, s := range m.opts.Scenarios {
-		items[i] = dialog.Item{
-			Title: s.Name,
-			Info:  fmt.Sprintf("%d steps %s %d checks", s.Steps, styles.Dot, s.Assertions),
-			Value: s.Path,
+		info := fmt.Sprintf("%d steps %s %d checks", s.Steps, styles.Dot, s.Assertions)
+		if judge && slices.Contains(m.judges, s.Path) {
+			info = "judge " + styles.Dot + " " + info
 		}
+		items[i] = dialog.Item{Title: s.Name, Info: info, Value: s.Path}
 	}
-	m.dialog.Open(dialog.NewPicker(m.sty, dialog.PickerOpts{
+	opts := dialog.PickerOpts{
 		ID:          scenariosID,
 		Title:       "Run Scenario",
 		Items:       items,
 		Filter:      true,
 		Placeholder: "Filter scenarios",
 		OnPick:      func(it dialog.Item) dialog.Action { return dialog.ActionRun{Path: it.Value} },
-	}))
+	}
+	if judge {
+		opts.Title = "Use Scenario as Judge"
+		opts.OnPick = func(it dialog.Item) dialog.Action { return dialog.ActionJudge{Path: it.Value} }
+	}
+	m.dialog.Open(dialog.NewPicker(m.sty, opts))
 	return nil
 }
 
@@ -581,6 +742,9 @@ func (m *Model) handleAction(a dialog.Action) tea.Cmd {
 	case dialog.ActionRun:
 		m.dialog.CloseFront()
 		return m.requestRun(a.Path, a.Confirmed)
+	case dialog.ActionJudge:
+		m.dialog.CloseFront()
+		return m.addJudge(a.Path)
 	case dialog.ActionNetwork:
 		m.dialog.CloseFront()
 		return m.setNetwork(a.Name)
@@ -588,7 +752,11 @@ func (m *Model) handleAction(a dialog.Action) tea.Cmd {
 		m.dialog.CloseFront()
 		switch a.ID {
 		case "run":
-			return m.openScenarios()
+			return m.openScenarios(false)
+		case "judge":
+			return m.openScenarios(true)
+		case "clear-judges":
+			return m.clearJudges()
 		case "network":
 			m.openNetworks()
 		case "cancel":

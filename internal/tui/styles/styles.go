@@ -47,6 +47,8 @@ type Styles struct {
 
 	Run struct {
 		Command lipgloss.Style
+		Prompt  lipgloss.Style
+		Text    lipgloss.Style
 
 		IconPending lipgloss.Style
 		IconSuccess lipgloss.Style
@@ -64,6 +66,7 @@ type Styles struct {
 		BodyOK    lipgloss.Style
 		BodyBad   lipgloss.Style
 		BodyNote  lipgloss.Style
+		Output    lipgloss.Style
 		Link      lipgloss.Style
 
 		PassTag    lipgloss.Style
@@ -169,6 +172,8 @@ func Default() *Styles {
 
 	r := &s.Run
 	r.Command = base.PaddingLeft(1).BorderStyle(lipgloss.NormalBorder()).BorderLeft(true).BorderForeground(Primary)
+	r.Prompt = r.Command
+	r.Text = base
 	r.IconPending = lipgloss.NewStyle().Foreground(SuccessMostSubtle)
 	r.IconSuccess = lipgloss.NewStyle().Foreground(Success)
 	r.IconError = lipgloss.NewStyle().Foreground(Error)
@@ -177,13 +182,16 @@ func Default() *Styles {
 	r.Params = subtle
 	r.Elapsed = subtle
 	r.Waiting = subtle
-	r.BodyLine = muted.Background(BgLeastVisible)
-	r.BodyKey = subtle.Background(BgLeastVisible)
-	r.BodyValue = lipgloss.NewStyle().Foreground(FgSubtle).Background(BgLeastVisible)
-	r.BodyOK = lipgloss.NewStyle().Foreground(SuccessMostSubtle).Background(BgLeastVisible)
-	r.BodyBad = lipgloss.NewStyle().Foreground(Destructive).Background(BgLeastVisible)
-	r.BodyNote = subtle.Background(BgLeastVisible)
-	r.Link = lipgloss.NewStyle().Foreground(Link).Background(BgLeastVisible).Underline(true)
+	// Bodies stay on the terminal background. A filled panel shows up as a
+	// bright block in some tmux setups, so only the small tags carry one.
+	r.BodyLine = muted
+	r.BodyKey = subtle
+	r.BodyValue = lipgloss.NewStyle().Foreground(FgSubtle)
+	r.BodyOK = lipgloss.NewStyle().Foreground(SuccessMostSubtle)
+	r.BodyBad = lipgloss.NewStyle().Foreground(Destructive)
+	r.BodyNote = subtle
+	r.Output = muted
+	r.Link = lipgloss.NewStyle().Foreground(Link).Underline(true)
 
 	tag := lipgloss.NewStyle().Padding(0, 1).Bold(true)
 	r.PassTag = tag.Background(Success).Foreground(BgLessVisible).SetString("PASS")

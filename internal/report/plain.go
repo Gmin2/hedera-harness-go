@@ -54,13 +54,14 @@ type Plain struct {
 
 	section string
 	started map[int]event.StepStarted
+	tools   map[string]event.AgentTool
 }
 
 func NewPlain(w io.Writer, width int) *Plain {
 	if width <= 0 {
 		width = 100
 	}
-	return &Plain{w: w, width: min(width, 120), started: map[int]event.StepStarted{}}
+	return &Plain{w: w, width: min(width, 120), started: map[int]event.StepStarted{}, tools: map[string]event.AgentTool{}}
 }
 
 func (p *Plain) Sink(e event.Event) {
@@ -96,7 +97,113 @@ func (p *Plain) Sink(e event.Event) {
 		p.println("   " + style.Render("⋯ "+e.Msg))
 	case event.RunFinished:
 		p.finish(e)
+	case event.AgentStarted:
+		p.agentStarted(e)
+	case event.AgentText:
+		for _, line := range strings.Split(strings.TrimSpace(e.Text), "\n") {
+			p.println(truncate("   "+sBase.Render(line), p.width))
+		}
+	case event.AgentTool:
+		p.tools[e.ID] = e
+	case event.AgentToolResult:
+		p.toolResult(e)
+	case event.AgentFinished:
+		p.agentFinished(e)
+	case event.JudgeFinished:
+		p.judgeFinished(e)
+	case event.LoopFinished:
+		p.loopFinished(e)
 	}
+}
+
+func (p *Plain) agentStarted(e event.AgentStarted) {
+	title := fmt.Sprintf("Attempt %d · %s", e.Attempt, e.Agent)
+	if e.Repair {
+		title += " · repair"
+	}
+	p.section = ""
+	p.enter(title)
+	prompt := strings.TrimSpace(e.Prompt)
+	lines := strings.Split(prompt, "\n")
+	if e.Repair && len(lines) > 6 {
+		lines = append(lines[:6], fmt.Sprintf("… %d more lines", len(lines)-6))
+	}
+	bar := lipgloss.NewStyle().Foreground(cPrimary).Render("│")
+	for _, l := range lines {
+		p.println(truncate("  "+bar+" "+sBase.Render(l), p.width))
+	}
+	p.println("")
+}
+
+func (p *Plain) toolResult(e event.AgentToolResult) {
+	call := p.tools[e.ID]
+	name := call.Name
+	if name == "" {
+		name = e.Name
+	}
+	icon := sOK.String()
+	if e.IsError {
+		icon = sFail.String()
+	}
+	p.println(truncate(fmt.Sprintf("   %s %s %s", icon, sName.Render(name), sMuted.Render(call.Summary)), p.width))
+	out := strings.Split(strings.TrimRight(e.Output, "\n"), "\n")
+	if strings.TrimSpace(e.Output) == "" {
+		return
+	}
+	limit := 3
+	if e.IsError {
+		limit = 8
+	}
+	for i, l := range out {
+		if i == limit {
+			p.println("     " + sSubtle.Render(fmt.Sprintf("… %d more lines", len(out)-limit)))
+			break
+		}
+		p.println(truncate("     "+sSubtle.Render(l), p.width))
+	}
+}
+
+func (p *Plain) agentFinished(e event.AgentFinished) {
+	info := fmt.Sprintf("◇ %s · %d turns · $%.2f · %s", orDash(e.Model), e.Turns, e.CostUSD, short(e.Elapsed))
+	p.println("")
+	p.println("   " + sMuted.Render(info))
+	if e.Error != "" {
+		p.println("   " + sFailTag.String() + " " + lipgloss.NewStyle().Foreground(cRed).Render(e.Error))
+	}
+}
+
+func (p *Plain) judgeFinished(e event.JudgeFinished) {
+	p.println("")
+	total := e.Passed + e.Failed
+	if e.Status == event.Passed {
+		p.println(fmt.Sprintf(" %s %s", sPass.String(), sBase.Render(fmt.Sprintf("judge passed %d/%d scenarios", e.Passed, total))))
+		return
+	}
+	p.println(fmt.Sprintf(" %s %s", sFailTag.String(), sBase.Render(fmt.Sprintf("judge failed %d/%d scenarios, sending the findings back", e.Failed, total))))
+	for _, f := range e.Findings {
+		p.println(truncate("     "+sMuted.Render("- "+f), p.width))
+	}
+}
+
+func (p *Plain) loopFinished(e event.LoopFinished) {
+	p.println("")
+	summary := fmt.Sprintf("in %d attempt(s) · $%.2f · %s", e.Attempts, e.CostUSD, short(e.Elapsed))
+	if e.Status == event.Passed {
+		p.println(fmt.Sprintf(" %s %s %s", sOK, lipgloss.NewStyle().Foreground(cGreen).Render("done"), sMuted.Render(summary)))
+	} else {
+		p.println(fmt.Sprintf(" %s %s %s", sFail, lipgloss.NewStyle().Foreground(cRed).Render("gave up"), sMuted.Render(summary)))
+		if e.Error != "" {
+			p.println("   " + lipgloss.NewStyle().Foreground(cRed).Render(e.Error))
+		}
+	}
+	p.println("")
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "agent"
+	}
+	return s
 }
 
 func (p *Plain) enter(section string) {

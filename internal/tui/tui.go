@@ -32,6 +32,12 @@ type Options struct {
 	// calls it in its own goroutine and forwards events into the program.
 	// ctx is canceled when the user cancels the run.
 	Launch func(ctx context.Context, scenarioPath, network string, sink event.Sink) error
+
+	// Agent runs the generate and repair loop for a prompt and streams events into sink.
+	// judges are scenario paths used to check the work, network is the selected network.
+	// nil means agent mode is unavailable.
+	Agent     func(ctx context.Context, prompt string, judges []string, network string, sink event.Sink) error
+	AgentName string // e.g. "claude", shown in the ui
 }
 
 // Run starts the tui and blocks until the user quits or ctx is done.

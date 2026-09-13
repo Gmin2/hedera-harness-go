@@ -1,0 +1,31 @@
+
+  ╱╱╱╱╱╱ █   █ █▀▀▀▀ █▀▀▀▄ █▀▀▀▀ █▀▀▀▄ ▄▀▀▀▄   █   █ ▄▀▀▀▄ █▀▀▀▄ █▀▀▀▄ █▀▀▀▀ ▄▀▀▀▀ ▄▀▀▀▀ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ █▀▀▀█ █▀▀▀  █   █ █▀▀▀  █▀▀▀▄ █▀▀▀█   █▀▀▀█ █▀▀▀█ █▀▀▀▄ █   █ █▀▀▀   ▀▀▀▄  ▀▀▀▄ ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ ▀   ▀ ▀▀▀▀▀ ▀▀▀▀  ▀▀▀▀▀ ▀   ▀ ▀   ▀   ▀   ▀ ▀   ▀ ▀   ▀ ▀   ▀ ▀▀▀▀▀ ▀▀▀▀  ▀▀▀▀  ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+  ╱╱╱╱╱╱ hh                                                                       v0.1.0 ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+
+  /work/hh-demo
+
+  ◇  mock  operator 0.0.2
+    3 scenarios · in process
+  ◇ claude  judges token-flow, scheduled-payout
+
+  Scenarios ──────────────────── Network ────────────────────── Last run ─────────────────────
+
+  ● token-flow judge             ◉ mock in process              None
+  ● topic-submit 4 steps         ○ local solo node
+  ● scheduled-payout judge       ○ testnet costs hbar
+
+
+
+
+
+
+
+
+ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   > Ready. Ask claude for a change, or run <scenario>                                                                 
+ :::  
+ :::  
+ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ enter send • ctrl+r scenarios • ctrl+n network • ctrl+p commands • ctrl+c quit • ctrl+g more

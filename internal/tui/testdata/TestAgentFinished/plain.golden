@@ -1,0 +1,31 @@
+
+                                                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+   ✓ schedule.create payout (payer=bob, to=carol, amount=1) 700ms                       ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+                                                                                        █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
+     status    SUCCESS                                                                  █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
+     tx        0.0.2@1757712000.000000111                                               ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
+     hashscan  hashscan.io/testnet/transaction/0.0.2@1757712000.000000111               harness                v0.1.0
+                                                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+    WARN  mirror node is 2 blocks behind, assertions may retry
+                                                                                        add a scheduled payout from
+   Assertions ────────────────────────────────────────────────────────────────────────  bob to carol and make sure …
+                                                                                        claude · claude-sonnet-4-5
+    PASS  token.supply gold         expected 1000      actual 1000  320ms
+    PASS  token.balance bob gold    expected 250       actual 250  810ms                ◇  mock  operator 0.0.2
+    PASS  token.balance carol gold  expected 0         actual 0  290ms
+    PASS  hbar.balance bob          expected >= 55     actual 55  260ms                 Agent ───────────────────────
+    PASS  topic.messages news       expected 1         actual 1  300ms                  ✓ attempt 2            passed
+    PASS  schedule.executed payout  expected executed  actual executed  1.5s              11 turns · $0.19
+
+   ◇ mock · 8 steps · 6/6 assertions · 10.9s ─────────────────────────────────────────  Judges ──────────────────────
+                                                                                        ✓ token-flow
+   ✓ judge passed 1/1 scenarios
+                                                                                        Progress ────────────────────
+   ✓ done in 2 attempts · $0.19 · 2m10s ──────────────────────────────────────────────  ✓ actors                  3/3
+                                                                                        ✓ steps                   8/8
+ ────────────────────────────────────────────────────────────────────────────────────── ✓ assertions              6/6
+   > Loop finished. Send another prompt, run <scenario> or clear                       
+ :::                                                                                    Assertions ──────────────────
+ :::                                                                                    ✓ 6  × 0  ○ 0
+ ──────────────────────────────────────────────────────────────────────────────────────
+ tab focus run • ctrl+r scenarios • ctrl+p commands • ctrl+c quit • ctrl+g more

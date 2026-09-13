@@ -126,3 +126,12 @@ func orOperator(ref string) string {
 	}
 	return ref
 }
+
+// Fields lists the yaml fields a step op accepts.
+func Fields(name string) []string {
+	f, ok := registry[name]
+	if !ok {
+		return nil
+	}
+	return scenario.Fields(f())
+}

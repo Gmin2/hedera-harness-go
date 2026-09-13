@@ -55,12 +55,19 @@ func (m *Model) ShortHelp() []key.Binding {
 	if m.state == stateLanding {
 		submit := k.Submit
 		submit.SetHelp("enter", "run command")
+		if m.opts.Agent != nil {
+			submit.SetHelp("enter", "send")
+		}
 		return []key.Binding{submit, k.Scenarios, k.Network, k.Commands, k.Quit, k.Help}
 	}
 
 	var binds []key.Binding
 	if m.running() {
-		binds = append(binds, k.Cancel)
+		cancel := k.Cancel
+		if m.session != nil {
+			cancel.SetHelp("esc", "cancel "+m.opts.AgentName)
+		}
+		binds = append(binds, cancel)
 	}
 	tab := k.Tab
 	if m.focus == focusMain {

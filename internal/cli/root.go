@@ -36,7 +36,7 @@ Networks:
 	}
 	root.PersistentFlags().StringP("network", "n", "", "mock, local or testnet (default from the scenario, else mock)")
 
-	root.AddCommand(runCmd(), checkCmd(), doctorCmd(), opsCmd(), mockCmd())
+	root.AddCommand(runCmd(), checkCmd(), agentCmd(), doctorCmd(), opsCmd(), mockCmd())
 
 	if err := fang.Execute(context.Background(), root, fang.WithVersion(Version), fang.WithNotifySignal(os.Interrupt)); err != nil {
 		return 1

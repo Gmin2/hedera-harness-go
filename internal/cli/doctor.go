@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"github.com/Gmin2/hedera-harness-go/internal/target"
 	"io"
 	"os"
 	"strings"
@@ -59,7 +60,7 @@ func (d *doctor) run(ctx context.Context, mode network.Mode) {
 
 	if mode == network.Mock {
 		start := time.Now()
-		t, closeTarget, err := openTarget(ctx, mode)
+		t, closeTarget, err := target.Open(ctx, mode)
 		if err != nil {
 			d.bad("mock network did not start: %v", err)
 			return

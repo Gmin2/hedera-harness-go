@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -20,11 +21,11 @@ func opsCmd() *cobra.Command {
 			w := cmd.OutOrStdout()
 			fmt.Fprintln(w, "steps:")
 			for _, n := range ops.Names() {
-				fmt.Fprintln(w, "  "+n)
+				fmt.Fprintf(w, "  %-20s %s\n", n, strings.Join(ops.Fields(n), ", "))
 			}
 			fmt.Fprintln(w, "\nassertions:")
 			for _, n := range assert.Names() {
-				fmt.Fprintln(w, "  "+n)
+				fmt.Fprintf(w, "  %-20s %s\n", n, strings.Join(assert.Fields(n), ", "))
 			}
 		},
 	}

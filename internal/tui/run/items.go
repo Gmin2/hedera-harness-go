@@ -17,6 +17,7 @@ const (
 	maxItemWidth = 120
 	gutter       = 2
 	bodyKeyWidth = 10
+	bodyIndent   = "  "
 )
 
 // Item is one entry in the run list.
@@ -92,19 +93,19 @@ func paramList(sty *styles.Styles, main string, params []event.Param, width int)
 	return sty.Run.Params.Render(out)
 }
 
-// bodyLine lays pre styled segments on the shaded body background and pads
-// the rest of the row so the block reads as one panel.
-func bodyLine(sty *styles.Styles, width int, segments ...string) string {
-	line := sty.Run.BodyLine.Render(" ") + strings.Join(segments, "")
+// bodyLine lays pre styled segments under an item header, lined up with the
+// name after the status icon. Nothing is painted past the text.
+func bodyLine(width int, segments ...string) string {
+	line := bodyIndent + strings.Join(segments, "")
 	if lipgloss.Width(line) > width {
 		return ansi.Truncate(line, width, "…")
 	}
-	return line + sty.Run.BodyLine.Render(strings.Repeat(" ", width-lipgloss.Width(line)))
+	return line
 }
 
 func bodyKV(sty *styles.Styles, width int, key string, value ...string) string {
 	k := sty.Run.BodyKey.Render(fmt.Sprintf("%-*s", bodyKeyWidth, key))
-	return bodyLine(sty, width, append([]string{k}, value...)...)
+	return bodyLine(width, append([]string{k}, value...)...)
 }
 
 // link renders text as an osc 8 hyperlink when there is a url.
@@ -220,7 +221,7 @@ func (a *actorsItem) spinning() bool { return !a.done && len(a.actors) < a.want 
 func (a *actorsItem) advance()       { a.anim.Advance() }
 
 // stepItem renders a transaction step the way a tool call is rendered: a
-// status header, then a shaded body with the receipt.
+// status header, then a body with the receipt.
 type stepItem struct {
 	sty    *styles.Styles
 	start  event.StepStarted
@@ -306,12 +307,13 @@ func (s *stepItem) body(w int) string {
 		lines = append(lines, bodyKV(sty, w, e.Key, sty.Run.BodyValue.Render(e.Value)))
 	}
 	if len(lines) == 0 {
-		lines = append(lines, bodyLine(sty, w, sty.Run.BodyNote.Render("no receipt")))
+		lines = append(lines, bodyLine(w, sty.Run.BodyNote.Render("no receipt")))
 	}
 
 	out := strings.Join(lines, "\n")
 	if f.Error != "" {
-		out += "\n\n" + tagLine(sty.Run.ErrorTag, sty.Run.TagMessage, f.Error, w)
+		// the tag's padding lines its text up with the body text
+		out += "\n\n " + tagLine(sty.Run.ErrorTag, sty.Run.TagMessage, f.Error, w-1)
 	}
 	return out
 }

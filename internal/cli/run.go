@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Gmin2/hedera-harness-go/internal/target"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,7 +48,7 @@ func runCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				target, closeTarget, err := openTarget(cmd.Context(), mode)
+				t, closeTarget, err := target.Open(cmd.Context(), mode)
 				if err != nil {
 					return err
 				}
@@ -60,7 +61,7 @@ func runCmd() *cobra.Command {
 				if !asJSON {
 					sink = report.NewPlain(cmd.OutOrStdout(), width).Sink
 				}
-				rep := runner.Run(cmd.Context(), target, sc, opts, sink)
+				rep := runner.Run(cmd.Context(), t, sc, opts, sink)
 				closeTarget()
 				reports = append(reports, rep)
 				if rep.Status != event.Passed {

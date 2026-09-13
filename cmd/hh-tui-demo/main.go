@@ -1,4 +1,5 @@
-// Command hh-tui-demo runs the hh tui against a scripted fake runner.
+// Command hh-tui-demo runs the hh tui against a scripted fake runner. Any
+// text that is not a command plays a fake agent loop.
 package main
 
 import (
@@ -34,7 +35,9 @@ func main() {
 			{Name: "scheduled-payout", Path: "scenarios/scheduled-payout.yaml", Description: "multi sig scheduled hbar transfer", Steps: 6, Assertions: 4},
 			{Name: "nft-mint", Path: "scenarios/nft-mint.yaml", Description: "mint and transfer an nft collection", Steps: 5, Assertions: 5},
 		},
-		Launch: demo.Launch,
+		Launch:    demo.Launch,
+		Agent:     demo.Agent,
+		AgentName: "claude",
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

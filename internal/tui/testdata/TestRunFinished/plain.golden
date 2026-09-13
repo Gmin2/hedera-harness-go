@@ -1,12 +1,12 @@
 
    × schedule.create payout (payer=bob, to=carol, amount=1) 700ms                       ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
                                                                                         ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
-    status    INVALID_SIGNATURE                                                         █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
-    expect    SUCCESS  mismatch                                                         █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
-    tx        0.0.4512@1757712000.000000111                                             ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
-    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000111             harness                v0.1.0
+     status    INVALID_SIGNATURE                                                        █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
+     expect    SUCCESS  mismatch                                                        █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
+     tx        0.0.4512@1757712000.000000111                                            ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
+     hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000111            harness                v0.1.0
                                                                                         ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
-    ERROR  bob did not sign the schedule create transaction
+     ERROR  bob did not sign the schedule create transaction
                                                                                         token-flow
     WARN  mirror node is 2 blocks behind, assertions may retry                          run 7f3a2c · scenarios/token…
 
