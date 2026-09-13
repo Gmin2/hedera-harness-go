@@ -5,8 +5,8 @@ Output demo/assets/hh.gif
 Require vhs
 Set Shell "bash"
 Set FontSize 16
-Set Width 1400
-Set Height 820
+Set Width 1200
+Set Height 700
 Set Padding 20
 Set Framerate 24
 Set TypingSpeed 40ms
@@ -17,7 +17,7 @@ Env HH_NETWORK "mock"
 
 Hide
 Type "go build -o hh . && export PATH=$PWD:$PATH && clear" Enter
-Sleep 4s
+Sleep 8s
 Show
 
 Type "hh" Enter

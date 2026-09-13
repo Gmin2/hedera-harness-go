@@ -111,6 +111,6 @@ The testnet run caught two things the mock hid, both fixed: fee collectors must 
 
 ```sh
 go test ./...                       # includes every example end to end on the mock network
-demo/render.sh                      # re-record the readme gifs and demo clips with vhs
+demo/render.sh                      # re-record the readme gifs and demo clips (vhs 0.12.0 workaround inside)
 git tag v0.1.0 && git push --tags   # goreleaser publishes the binaries
 ```
