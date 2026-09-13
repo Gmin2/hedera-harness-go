@@ -19,18 +19,20 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go build ./...
-      - uses: charmbracelet/vhs-action@v2
-        with:
-          path: demo/run.tape
-      - name: render the rest
+      - name: install vhs with a stable ffmpeg
         run: |
-          which ffmpeg ttyd vhs; ffmpeg -version | head -1
-          for d in plain theme hide; do vhs .github/vhs-debug/$d.tape; done
-          ls -la *.gif || echo "no debug gifs"
-          for t in hero agent check init; do
-            vhs demo/$t.tape; echo "vhs $t exit $?"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg ttyd fonts-jetbrains-mono chromium-browser || sudo apt-get install -y -qq ffmpeg fonts-jetbrains-mono
+          command -v ttyd || { curl -sL -o /tmp/ttyd https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 && sudo install /tmp/ttyd /usr/local/bin/ttyd; }
+          go install github.com/charmbracelet/vhs@v0.12.0
+          echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+      - name: render gifs
+        run: |
+          ffmpeg -version | head -1
+          for t in hero agent run check init; do
+            vhs demo/$t.tape
           done
-          find / -name "*.gif" -newer go.mod 2>/dev/null | grep -v proc | head
+          ls -la demo/assets
       - name: commit gifs
         run: |
           ls -la demo/assets
