@@ -5,7 +5,8 @@
 hh runs YAML scenarios against Hedera and proves the result on the mirror node.
 It ships with a mock Hedera network that runs in process, so a full token,
 topic or schedule flow runs in milliseconds with no docker, no portal account
-and no testnet hbar. The same scenario then runs unchanged on solo or testnet.
+and no testnet hbar. The same scenarios run on testnet: all 7 examples pass on real testnet
+([results and hashscan links](#verified-on-testnet)).
 
 It takes direct inspiration from [hedera-dev/hedera-harness](https://github.com/hedera-dev/hedera-harness)
 (stages that cost more as they go, the harness decides pass or fail, never the agent)
@@ -18,26 +19,35 @@ and targets the gaps a first hour with it shows:
 | mirror lag handled with `sleep(6)` | assertions poll, and wait until the mirror has the last transaction before reading |
 | typescript only | go, on the official hiero-sdk-go |
 | `PrivateKey.fromString` silently turns an ecdsa hex key into ed25519 | keys never guess, ambiguous raw keys are resolved by asking the mirror node for the account key type |
-| 7 different env var names for the operator across snippets | all of them accepted, `.env` loaded automatically |
+| six different env var names for the operator across snippets | all of them accepted, `.env` loaded automatically |
 
 ## quick start
 
+needs go 1.26.
+
 ```sh
 git clone https://github.com/Gmin2/hedera-harness-go && cd hedera-harness-go
-go build -o hh .
+go build -o hh . && export PATH="$PWD:$PATH"
 
-./hh run examples/          # every example, on the mock network
-./hh                        # the interactive ui
+hh run examples/            # every example, on the mock network, no keys needed
+hh                          # the interactive ui
 ```
 
-or without cloning: `go install github.com/Gmin2/hedera-harness-go@latest` (the binary is named `hedera-harness-go`).
+or `go install github.com/Gmin2/hedera-harness-go@latest` (the binary is then named `hedera-harness-go`).
+
+On testnet, put a [portal](https://portal.hedera.com) account in `.env` (`HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY`), then:
+
+```sh
+hh doctor -n testnet        # key type, key matches the account, balance, mirror and node reachable
+hh run examples/ -n testnet
+```
 
 Start a project:
 
 ```sh
-./hh init my-project && cd my-project   # hh.yaml, scenarios/first-transfer.yaml, .env.example
-../hh run                               # runs the judges listed in hh.yaml
-../hh                                   # tui with those judges preloaded
+hh init my-project && cd my-project     # hh.yaml, scenarios/first-transfer.yaml, .env.example
+hh run                                  # runs the judges listed in hh.yaml
+hh                                      # tui with those judges preloaded
 ```
 
 `hh.yaml` is the one place a project declares its network, scenarios, judges and agent settings. `hh run`, `hh check`, `hh agent` and the tui all read it, flags override it:
@@ -152,7 +162,7 @@ Like connecting a wallet in a dapp, hh has one connected wallet that pays for an
 | burner | a fresh ecdsa account funded from the default one for each run and swept back after, like the throwaway signer of the original harness (`wallet: { kind: burner, fund: 50 }`) |
 | import | paste an account id and key in the tui, kept for the session only |
 
-Connecting checks the wallet first: the key parses, the account exists, the key matches it, and the balance is enough. Checks (build, test, deploy commands) get the wallet as `HH_OPERATOR_ID`, `HH_OPERATOR_KEY`, `HH_JSON_RPC_URL` and, for ecdsa keys, `__RUNTIME_DEPLOYER_PRIVATE_KEY` so scaffold-hbar deploys sign with it. Claude never receives the key.
+Connecting checks the wallet first: the key parses, the account exists, the key matches it, and the balance is enough. Checks (build, test, deploy commands) get the wallet as `HH_OPERATOR_ID`, `HH_OPERATOR_KEY`, `HH_JSON_RPC_URL` and, for ecdsa keys, `__RUNTIME_DEPLOYER_PRIVATE_KEY` so scaffold-hbar deploys sign with it. The agent never receives a key: hh strips every `*PRIVATE_KEY*` and `*OPERATOR_KEY*` variable from the environment claude runs in, and judge scenarios that exist before a run are pinned, so the agent cannot rewrite them to pass.
 
 ```sh
 hh doctor --network testnet   # key type, key matches account, balance, mirror and node reachable
@@ -192,11 +202,40 @@ Ports of [hedera-code-snippets](https://github.com/hedera-dev/hedera-code-snippe
 | flow | snippet | hh scenario | notes |
 |---|---|---|---|
 | airdrop, claim, reject, cancel | 214 (`airdrop.js` + utils) | 40 (`examples/03-airdrop.yaml`) | the snippet prints balances, hh asserts 9 facts |
-| permissioned topic writes | 216 (`hcs-write.js` + `bip39-create-accounts`) | 19 (`examples/04-private-topic.yaml`) | |
+| permissioned topic writes | 99 (`hcs-write.js`, plus 117 in `bip39-create-accounts` to make its accounts) | 20 (`examples/04-private-topic.yaml`, creates its own accounts and verifies the running hash chain) | |
 | multisig account | 81 (`multisig-1-of-2.js`) | 20 (`examples/05-scheduled-multisig.yaml`, also schedules the payout) | |
-| create and mint a token | 44 (`create-and-mint.js`) | 8 lines of one step | |
+| create and mint a token | 44 (`create-and-mint.js`) | one `token.create` step (see the scenario at the top) | |
 
-Each hh scenario also runs offline in 10 to 20 ms, where the snippet needs a funded testnet account and a network round trip per transaction.
+Each hh scenario runs on the mock in tens of milliseconds with no account, and the same file runs on testnet in 15 to 35 seconds.
+
+## verified on testnet
+
+hh from main, portal account 0.0.10522535, 2026-09-13:
+
+| example | result | time |
+|---|---|---|
+| 01-first-transfer | passed, 1 step, 2 assertions ([transfer](https://hashscan.io/testnet/transaction/0.0.10522535@1789306958.719056876)) | 14.8s |
+| 02-token-kyc | passed, 11 steps incl kyc, freeze and pause gates, 5 assertions ([token create](https://hashscan.io/testnet/transaction/0.0.10522535@1789307010.887486229)) | 31.1s |
+| 03-airdrop | passed, airdrop to 4 accounts, claim, reject, cancel, 9 assertions ([airdrop](https://hashscan.io/testnet/transaction/0.0.10522535@1789307070.026535393)) | 34.3s |
+| 04-private-topic | passed, `verify_chain` recomputed the running hash on the real topic ([topic create](https://hashscan.io/testnet/transaction/0.0.10522535@1789306990.084980032)) | 24.6s |
+| 05-scheduled-multisig | passed, 2 of 3 schedule executed with inner tx SUCCESS ([executing signature](https://hashscan.io/testnet/transaction/0.0.10522535@1789307107.366004425)) | 26.8s |
+| 06-nft-collection | passed, NO_REMAINING_AUTOMATIC_ASSOCIATIONS gate | 17.6s |
+| 07-custom-fees | passed, fixed hbar plus 10 percent fractional fee assessed on chain ([fee transfer](https://hashscan.io/testnet/transaction/0.0.10522535@1789307899.955539328)) | 25.9s |
+| 01 with `--wallet burner` | passed, burner [0.0.10524023](https://hashscan.io/testnet/account/0.0.10524023) created, used, deleted and swept back | 8.1s |
+
+The testnet run also found two things the mock hid, both fixed: fee collectors must sign token create, and nft mints must sign with the supply key.
+
+## compared to hedera-harness
+
+| | hedera-dev/hedera-harness | hh |
+|---|---|---|
+| language | typescript | go on hiero-sdk-go |
+| who decides pass | validators, chain checks by an llm reading curl output | scenarios evaluated in code against the mirror node, with evidence |
+| networks | testnet | mock in process, solo, testnet |
+| agent | claude or cursor, batch run | claude, a streaming conversation with resume |
+| judges | build, playwright smoke, llm evaluation, chain | shell checks, scenarios, `contract.call` |
+| wallet | ephemeral testnet signer | connected wallet: portal, burner per run, import |
+| app target | scaffold-hbar web app, with browser checks | scaffold-hbar via `hh init --scaffold-hbar`, no browser checks yet |
 
 ## how it works
 
@@ -223,7 +262,8 @@ go run ./cmd/hh-tui-demo
 
 ## roadmap
 
-- agent loop on scaffold-hbar apps: judge contract and frontend features with json-rpc assertions, not only native services
+- browser smoke checks for scaffold-hbar pages, so a dapp feature is judged end to end like the original harness
+- tell infrastructure failures (mirror down, funding) apart from agent mistakes so they do not use repair attempts
 - more agent clis (codex, cursor) behind the same stream parser
-- more services: file service, contracts through the json-rpc relay, allowances
-- mock fidelity tests that run the same scenario on mock and solo and diff the results
+- more services: file service, allowances, contract writes
+- mock fidelity: fees, nested custom fees, fidelity tests that diff mock and testnet runs
