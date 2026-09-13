@@ -21,25 +21,20 @@ jobs:
       - run: go build ./...
       - uses: charmbracelet/vhs-action@v2
         with:
-          path: demo/hero.tape
-      - uses: charmbracelet/vhs-action@v2
-        with:
-          path: demo/agent.tape
-      - uses: charmbracelet/vhs-action@v2
-        with:
           path: demo/run.tape
-      - uses: charmbracelet/vhs-action@v2
-        with:
-          path: demo/check.tape
-      - uses: charmbracelet/vhs-action@v2
-        with:
-          path: demo/init.tape
+      - name: render the rest
+        run: |
+          find / -name "*.gif" -newer go.mod 2>/dev/null | grep -v proc | head
+          for t in hero agent check init; do
+            vhs demo/$t.tape; echo "vhs $t exit $?"
+          done
+          find / -name "*.gif" -newer go.mod 2>/dev/null | grep -v proc | head
       - name: commit gifs
         run: |
           ls -la demo/assets
           git status --short --ignored demo/assets
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f demo/assets/*.gif
+          git add -f demo/assets/*.gif || true
           git commit -m "render readme gifs" || echo "no gif changes"
           git push
