@@ -15,15 +15,32 @@ import (
 	"github.com/Gmin2/hedera-harness-go/internal/tui/styles"
 )
 
-// networkLine renders "◇ mock  operator 0.0.2".
+// networkLine renders "◇ mock  ● 0.0.2 · 10000 ℏ · Mock operator", or
+// "◇ mock  operator 0.0.2" when no wallet is known.
 func (m *Model) networkLine(network string, width int) string {
+	line := m.networkOnlyLine(network) + " "
+	if m.hasWallet() {
+		return ansi.Truncate(line+m.walletPill(), width, "…")
+	}
 	operator := m.operator
 	if operator == "" {
 		operator = "not set"
 	}
-	line := m.sty.Subtle.Render(styles.IconInfo) + " " + m.sty.NetworkPill(network) + " " +
-		m.sty.Subtle.Render("operator ") + m.sty.Muted.Render(operator)
+	line += m.sty.Subtle.Render("operator ") + m.sty.Muted.Render(operator)
 	return ansi.Truncate(line, width, "…")
+}
+
+func (m *Model) networkOnlyLine(network string) string {
+	return m.sty.Subtle.Render(styles.IconInfo) + " " + m.sty.NetworkPill(network)
+}
+
+// sidebarNetwork is the network line of the sidebars. With a wallet the
+// network stands alone and the wallet gets its own section under it.
+func (m *Model) sidebarNetwork(network string, width int) []string {
+	if !m.hasWallet() {
+		return []string{m.networkLine(network, width)}
+	}
+	return []string{m.networkOnlyLine(network), "", m.walletSection(width)}
 }
 
 func (m *Model) landingView(width, height int) string {
@@ -212,14 +229,16 @@ func (m *Model) sidebarView(width, height int) string {
 		sty.Sidebar.Title.Render(ansi.Truncate(r.Name(), w, "…")),
 		sty.Sidebar.Info.Render(ansi.Truncate(runRef(r.Info.RunID, r.Path), w, "…")),
 		"",
-		m.networkLine(r.Network, w),
+	}
+	blocks = append(blocks, m.sidebarNetwork(r.Network, w)...)
+	blocks = append(blocks,
 		"",
 		m.actorsSection(r, w, 0),
 		"",
 		m.progressSection(r, w),
 		"",
 		m.assertionsSection(r, w),
-	}
+	)
 	if len(m.judges) > 0 {
 		blocks = append(blocks, "", m.judgesSection(m.selectedJudges(), w))
 	}
@@ -240,12 +259,14 @@ func (m *Model) sessionSidebar(width, height int) string {
 		m.promptTitle(w, 2),
 		sty.Sidebar.Info.Render(ansi.Truncate(m.agentRef(), w, "…")),
 		"",
-		m.networkLine(s.Network, w),
+	}
+	blocks = append(blocks, m.sidebarNetwork(s.Network, w)...)
+	blocks = append(blocks,
 		"",
 		m.agentSection(w),
 		"",
 		m.judgesSection(s.Judges(), w),
-	}
+	)
 	if checks := s.Checks(); len(checks) > 0 {
 		blocks = append(blocks, "", m.checksSection(checks, w))
 	}
@@ -455,8 +476,11 @@ func (m *Model) compactHeader(width int) string {
 
 	var parts []string
 	if s := m.session; s != nil {
-		parts = append(parts, sty.Header.Detail.Render(s.Agent), sty.Header.Detail.Render(s.Network),
-			sty.Header.Detail.Render(m.sessionProgressText()))
+		parts = append(parts, sty.Header.Detail.Render(s.Agent), sty.Header.Detail.Render(s.Network))
+		if m.hasWallet() {
+			parts = append(parts, m.shortWalletPill())
+		}
+		parts = append(parts, sty.Header.Detail.Render(m.sessionProgressText()))
 		if n := len(s.Judges()); n > 0 {
 			parts = append(parts, sty.Header.Detail.Render(plural(n, "judge")))
 		}
@@ -465,8 +489,11 @@ func (m *Model) compactHeader(width int) string {
 		}
 	} else {
 		r := m.run
-		parts = append(parts, sty.Header.Detail.Render(r.Name()), sty.Header.Detail.Render(r.Network),
-			sty.Header.Detail.Render(progressText(r)))
+		parts = append(parts, sty.Header.Detail.Render(r.Name()), sty.Header.Detail.Render(r.Network))
+		if m.hasWallet() {
+			parts = append(parts, m.shortWalletPill())
+		}
+		parts = append(parts, sty.Header.Detail.Render(progressText(r)))
 	}
 	tip := " open"
 	if m.detailsOpen {

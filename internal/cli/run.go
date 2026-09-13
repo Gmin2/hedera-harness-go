@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Gmin2/hedera-harness-go/internal/target"
 	"os"
 	"path/filepath"
 	"strings"
@@ -47,7 +46,7 @@ func runCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				t, closeTarget, err := target.Open(cmd.Context(), mode)
+				t, closeTarget, err := open(cmd.Context(), mode)
 				if err != nil {
 					return err
 				}

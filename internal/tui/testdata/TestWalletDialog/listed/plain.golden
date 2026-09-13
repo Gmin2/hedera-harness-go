@@ -6,21 +6,21 @@
 
   /work/hh-demo
 
-  ◇  mock  operator 0.0.2
-    3 scenarios · in process
-
-  Scenarios ─────────────╭────────────────────────────────────────────────────────────────────╮
-                         │ Commands ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱ │
-  ● token-flow 8 steps   │                                                                    │
-  ● topic-submit 4 steps │ > net                                                              │
-  ● scheduled-payout 6 st│                                                                    │
-                         │ Switch network                                              ctrl+n │
-                         │ Connect wallet                                              ctrl+w │
+  ◇  testnet  ● 0.0.6123456 · 3.20 ℏ · Portal account
+    3 scenarios · costs h╭────────────────────────────────────────────────────────────────────╮
+                         │ Connect wallet ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱ │
+  Scenarios ─────────────│  testnet  pays and signs every run and agent loop                  │
                          │                                                                    │
-                         │ ↑/↓ choose • enter confirm • esc cancel                            │
+  ● token-flow 8 steps   │ ▌ ● Portal account connected                   0.0.6123456  3.20 ℏ │
+  ● topic-submit 4 steps │     from .env · ecdsa                                              │
+  ● scheduled-payout 6 st│     balance low 3.2 ℏ                                              │
+                         │   ● Burner wallet                                                  │
+                         │     fresh per run, funded 20 ℏ · ecdsa                             │
+                         │   + Import key…                                                    │
+                         │     use your own account id and private key                        │
+                         │                                                                    │
+                         │ ↑/↓ choose • enter connect • esc close                             │
                          ╰────────────────────────────────────────────────────────────────────╯
-
-
 
 
  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -28,4 +28,4 @@
  :::  
  :::  
  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- enter run command • ctrl+r scenarios • ctrl+n network • ctrl+p commands • ctrl+c quit • ctrl+g more
+ enter run command • ctrl+r scenarios • ctrl+n network • ctrl+w wallet • ctrl+p commands • ctrl+c quit • ctrl+g more

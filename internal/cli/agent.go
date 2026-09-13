@@ -17,7 +17,6 @@ import (
 	"github.com/Gmin2/hedera-harness-go/internal/agent"
 	"github.com/Gmin2/hedera-harness-go/internal/event"
 	"github.com/Gmin2/hedera-harness-go/internal/report"
-	"github.com/Gmin2/hedera-harness-go/internal/target"
 )
 
 func agentCmd() *cobra.Command {
@@ -110,7 +109,8 @@ run out. Uses your existing claude code login.`,
 				Model:          model,
 				HH:             hhPath(),
 				Agent:          agent.Claude{Command: claudeBin},
-				Open:           target.Open,
+				Open:           open,
+				CheckEnv:       checkEnv(mode),
 				SessionID:      resume,
 				MaxCostUSD:     maxCost,
 				AttemptTimeout: timeout,

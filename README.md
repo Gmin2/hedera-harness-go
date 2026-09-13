@@ -131,6 +131,18 @@ It is a conversation, like claude code. In the tui (`./hh`) type a question or a
 | `local` | [solo](https://solo.hiero.org) on `127.0.0.1:35211`, mirror rest `:38081`. `HH_LOCAL_PROFILE=localnode` for hiero local node (deprecated after sept 2026) | a running solo |
 | `testnet` | hedera testnet, links to hashscan | `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY` |
 
+### wallets
+
+Like connecting a wallet in a dapp, hh has one connected wallet that pays for and signs every scenario run, judge run and repair loop. Open the picker with ctrl+w (or `/wallet`) in the tui, `hh wallet` in the cli, or set it in hh.yaml.
+
+| wallet | what |
+|---|---|
+| default | the network operator: the in process mock operator, solo genesis, or your portal account from .env |
+| burner | a fresh ecdsa account funded from the default one for each run and swept back after, like the throwaway signer of the original harness (`wallet: { kind: burner, fund: 50 }`) |
+| import | paste an account id and key in the tui, kept for the session only |
+
+Connecting checks the wallet first: the key parses, the account exists, the key matches it, and the balance is enough. Checks (build, test, deploy commands) get the wallet as `HH_OPERATOR_ID`, `HH_OPERATOR_KEY`, `HH_JSON_RPC_URL` and, for ecdsa keys, `__RUNTIME_DEPLOYER_PRIVATE_KEY` so scaffold-hbar deploys sign with it. Claude never receives the key.
+
 ```sh
 hh doctor --network testnet   # key type, key matches account, balance, mirror and node reachable
 hh run examples/02-token-kyc.yaml --network testnet
@@ -149,6 +161,7 @@ The mock charges no fees so hbar assertions are exact. Write `gte`/`lte` for acc
 | `hh init [dir]` | create hh.yaml, a starter scenario and .env.example |
 | `hh agent <prompt> --judge <file>` | let claude code do a task, judge it with scenarios, repair until it passes |
 | `hh check <file\|dir>...` | validate scenarios offline: unknown fields, unknown names, steps that use a name before it exists |
+| `hh wallet` | list the wallets a network offers, with balance and checks |
 | `hh doctor` | preflight a network and operator before spending anything |
 | `hh ops` | list step ops and assertions |
 | `hh mock` | keep a mock network running for other tools (prints addresses and operator key) |

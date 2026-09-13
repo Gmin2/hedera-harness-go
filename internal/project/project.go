@@ -22,7 +22,7 @@ type Config struct {
 	Path      string   `yaml:"-"`
 	Network   string   `yaml:"network"`
 	Scenarios []string `yaml:"scenarios"` // files or dirs the tui lists, default "."
-	Wallet    string   `yaml:"wallet"`
+	Wallet    Wallet   `yaml:"wallet"`
 	Agent     Agent    `yaml:"agent"`
 	Judge     Judge    `yaml:"judge"`
 }
@@ -37,6 +37,27 @@ type Agent struct {
 type Judge struct {
 	Scenarios []string `yaml:"scenarios"`
 	Checks    []Check  `yaml:"checks"`
+}
+
+// Wallet picks the account that pays and signs. In yaml it is either a kind
+// (default, burner) or { kind: burner, fund: 30 }.
+type Wallet struct {
+	Kind string  `yaml:"kind"`
+	Fund float64 `yaml:"fund"`
+}
+
+func (w *Wallet) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind == yaml.ScalarNode {
+		w.Kind = n.Value
+		return nil
+	}
+	type plain Wallet
+	var p plain
+	if err := n.Decode(&p); err != nil {
+		return err
+	}
+	*w = Wallet(p)
+	return nil
 }
 
 // Check is a shell command that must exit 0. In yaml it is either a plain
@@ -99,6 +120,11 @@ func Load(dir string) (*Config, error) {
 	if err := dec.Decode(&c); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("%s: %s", path, strings.TrimPrefix(err.Error(), "yaml: "))
 	}
+	switch c.Wallet.Kind {
+	case "", "default", "burner":
+	default:
+		return nil, fmt.Errorf("%s: wallet %q must be default or burner (import keys in the tui or with --wallet-key)", path, c.Wallet.Kind)
+	}
 	for i, ch := range c.Judge.Checks {
 		if strings.TrimSpace(ch.Run) == "" {
 			return nil, fmt.Errorf("%s: judge.checks[%d] has no run command", path, i)
@@ -111,6 +137,7 @@ func Load(dir string) (*Config, error) {
 // Template is what hh init writes.
 const Template = `# hh project settings. flags override these.
 network: mock          # mock, local or testnet
+wallet: default        # default operator, or burner: a fresh account funded per run
 
 # where the tui looks for scenarios
 scenarios: [scenarios]

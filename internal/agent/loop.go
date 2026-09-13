@@ -24,8 +24,11 @@ type Options struct {
 	Dir    string
 	Judges []string // scenario files, relative to Dir or absolute
 	Checks []Check  // shell commands that must exit 0, run before the scenarios
-	// Env is added to the environment of checks, eg the connected wallet.
-	Env         []string
+	// Env is added to the environment of checks.
+	Env []string
+	// CheckEnv, when set, prepares the environment for one round of checks,
+	// eg a burner wallet funded for that round, and cleans it up after.
+	CheckEnv    func(ctx context.Context) ([]string, func(), error)
 	Network     network.Mode
 	MaxAttempts int
 	Model       string
@@ -157,11 +160,25 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 func judge(ctx context.Context, o Options, attempt int, sink event.Sink) []string {
 	var findings []string
 	passed, failed := 0, 0
-	for _, c := range o.Checks {
+	env := o.Env
+	checks := o.Checks
+	if len(checks) > 0 && o.CheckEnv != nil {
+		extra, cleanup, err := o.CheckEnv(ctx)
+		if err != nil {
+			// without the wallet the checks would fail for the wrong reason
+			findings = append(findings, "could not prepare the wallet for checks: "+err.Error())
+			failed++
+			checks = nil
+		} else {
+			defer cleanup()
+			env = append(append([]string(nil), env...), extra...)
+		}
+	}
+	for _, c := range checks {
 		if ctx.Err() != nil {
 			break
 		}
-		fin := runCheck(ctx, o.Dir, c, attempt, o.Env, sink)
+		fin := runCheck(ctx, o.Dir, c, attempt, env, sink)
 		if fin.Status == event.Passed {
 			passed++
 		} else {
