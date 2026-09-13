@@ -12,16 +12,23 @@ A harness for the Hedera ecosystem. Build dapps with an agent, run real transact
 
 <img alt="Welcome to hh" src="demo/assets/hh.gif" width="600" />
 
-The above example was generated with [VHS](https://github.com/charmbracelet/vhs) ([view source](./demo/hero.tape)).
-
 ## Installation
 
-```sh
-# macOS apple silicon. also darwin_amd64, linux_amd64, linux_arm64 and windows_amd64.zip
-curl -sL https://github.com/Gmin2/hedera-harness-go/releases/latest/download/hh_darwin_arm64.tar.gz | tar xz
-sudo mv hh /usr/local/bin/
+Download the binary for macOS on apple silicon:
 
-# or with go 1.26
+```sh
+curl -sL https://github.com/Gmin2/hedera-harness-go/releases/latest/download/hh_darwin_arm64.tar.gz | tar xz
+```
+
+```sh
+sudo mv hh /usr/local/bin/
+```
+
+For other platforms swap `darwin_arm64` for `darwin_amd64`, `linux_amd64` or `linux_arm64`, or grab `windows_amd64.zip` from [releases](https://github.com/Gmin2/hedera-harness-go/releases).
+
+Or install with go 1.26:
+
+```sh
 go install github.com/Gmin2/hedera-harness-go@latest
 ```
 
