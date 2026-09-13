@@ -158,7 +158,9 @@ func (m *Model) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 		}
 	}
 
-	uv.NewStyledString("\n"+m.editor.View()).Draw(scr, l.editor)
+	// the rows above and below the textarea hold a thin rule, like the section rules
+	rule := m.sty.Section.Line.Render(strings.Repeat("─", max(0, l.editor.Dx())))
+	uv.NewStyledString(rule+"\n"+m.editor.View()+"\n"+rule).Draw(scr, l.editor)
 
 	if m.state == stateRun && m.compact && m.detailsOpen {
 		uv.NewStyledString(m.detailsView(l.details.Dx(), l.details.Dy())).Draw(scr, l.details)

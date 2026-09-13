@@ -23,9 +23,9 @@
     hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000105           │ × assertions              6/6
                                                                                       │
                                                                                         Assertions ──────────────────
-                                                                                        ✓ 5  × 1  ○ 0
+ ────────────────────────────────────────────────────────────────────────────────────── ✓ 5  × 1  ○ 0
  ::: Run finished. Try run <scenario> again, or clear                                  
  :::  
  :::  
-
+ ──────────────────────────────────────────────────────────────────────────────────────
  ↑/↓ scroll • g/G top/bottom • tab focus editor • ctrl+p commands • ctrl+c quit • ctrl+g more

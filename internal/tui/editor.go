@@ -11,7 +11,7 @@ import (
 const (
 	editorMinHeight = 3
 	editorMaxHeight = 10
-	// editorMargin is the blank row above the textarea plus one below.
+	// editorMargin is the rule row above the textarea plus the one below.
 	editorMargin = 2
 )
 
