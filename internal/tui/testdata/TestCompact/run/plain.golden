@@ -1,6 +1,7 @@
 
   HEDERA HARNESS ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱ token-flow • mock • steps 7/8 • ctrl+d open
 
+
    ✓ topic.create news (memo=hh demo) 610ms
 
     status    SUCCESS                                                                   
@@ -19,9 +20,8 @@
    ● schedule.create payout (payer=bob, to=carol, amount=1) %4$6865EBf(c50A Submitting
 
 
-                                                                                         
-    > Running token-flow... esc to cancel                                                
-  :::                                                                                    
-  :::                                                                                    
-                                                                                         
+   > Running token-flow... esc to cancel                                                 
+ :::  
+ :::  
+
  esc cancel run • tab focus run • ctrl+r scenarios • ctrl+d details • ctrl+p commands …

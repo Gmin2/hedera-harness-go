@@ -11,9 +11,8 @@ import (
 const (
 	editorMinHeight = 3
 	editorMaxHeight = 10
-	// editorMargin is the blank row above the input panel plus the panel
-	// padding row above and below the textarea.
-	editorMargin = 3
+	// editorMargin is the blank row above the textarea plus one below.
+	editorMargin = 2
 )
 
 func newEditor(sty *styles.Styles) textarea.Model {

@@ -1,31 +1,31 @@
 
+   × schedule.create payout (payer=bob, to=carol, amount=1) 700ms                       ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
                                                                                         ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
-    status    INVALID_SIGNATURE                                                         ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
-    expect    SUCCESS  mismatch                                                         █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
-    tx        0.0.4512@1757712000.000000111                                             █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
-    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000111             ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
-                                                                                        harness                v0.1.0
-    ERROR  bob did not sign the schedule create transaction                             ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+    status    INVALID_SIGNATURE                                                         █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
+    expect    SUCCESS  mismatch                                                         █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
+    tx        0.0.4512@1757712000.000000111                                             ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
+    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000111             harness                v0.1.0
+                                                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+    ERROR  bob did not sign the schedule create transaction
+                                                                                        token-flow
+    WARN  mirror node is 2 blocks behind, assertions may retry                          run 7f3a2c · scenarios/token…
 
-    WARN  mirror node is 2 blocks behind, assertions may retry                          token-flow
-                                                                                        run 7f3a2c · scenarios/token…
-   Assertions ────────────────────────────────────────────────────────────────────────
-                                                                                        ◇  testnet  operator 0.0.4512
-    PASS  token.supply gold         expected 1000      actual 1000  320ms
-    PASS  token.balance bob gold    expected 250       actual 250  810ms                Actors ──────────────────────
-    PASS  token.balance carol gold  expected 0         actual 0  290ms                  ✓ alice 0.0.1001
-    PASS  hbar.balance bob          expected >= 55     actual 55  260ms                 ✓ bob   0.0.1002
-    PASS  topic.messages news       expected 1         actual 1  300ms                  ✓ carol 0.0.1003
-    FAIL  schedule.executed payout  expected executed  actual not found  1.5s
-          source testnet.mirrornode.hedera.com/api/v1/schedules?account.id=0.0.1002 ·…  Progress ────────────────────
-           ERROR  no schedule created by 0.0.1002 after 3 attempts                      ✓ actors                  3/3
-                                                                                        × steps                   8/8
-   ◇ testnet · 7/8 steps · 5/6 assertions · 11.6s ────────────────────────────────────  × assertions              6/6
+   Assertions ────────────────────────────────────────────────────────────────────────  ◇  testnet  operator 0.0.4512
 
+    PASS  token.supply gold         expected 1000      actual 1000  320ms               Actors ──────────────────────
+    PASS  token.balance bob gold    expected 250       actual 250  810ms                ✓ alice 0.0.1001
+    PASS  token.balance carol gold  expected 0         actual 0  290ms                  ✓ bob   0.0.1002
+    PASS  hbar.balance bob          expected >= 55     actual 55  260ms                 ✓ carol 0.0.1003
+    PASS  topic.messages news       expected 1         actual 1  300ms
+    FAIL  schedule.executed payout  expected executed  actual not found  1.5s           Progress ────────────────────
+          source testnet.mirrornode.hedera.com/api/v1/schedules?account.id=0.0.1002 ·…  ✓ actors                  3/3
+           ERROR  no schedule created by 0.0.1002 after 3 attempts                      × steps                   8/8
+                                                                                        × assertions              6/6
+   ◇ testnet · 7/8 steps · 5/6 assertions · 11.6s ────────────────────────────────────
                                                                                         Assertions ──────────────────
                                                                                         ✓ 5  × 1  ○ 0
-    > Run finished. Try run <scenario> again, or clear                                 
-  :::                                                                                  
-  :::                                                                                  
-                                                                                       
+   > Run finished. Try run <scenario> again, or clear                                  
+ :::  
+ :::  
+
  tab focus run • ctrl+r scenarios • ctrl+p commands • ctrl+c quit • ctrl+g more
