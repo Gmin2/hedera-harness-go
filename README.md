@@ -1,72 +1,82 @@
 # hh
 
 <p>
-  <img src="demo/assets/hh-iso.png" width="500" alt="hh" />
+  <img src="demo/assets/hh-header.png" width="560" alt="hh" />
   <br>
   <a href="https://github.com/Gmin2/hedera-harness-go/releases"><img src="https://img.shields.io/github/v/release/Gmin2/hedera-harness-go" alt="Latest Release"></a>
   <a href="https://github.com/Gmin2/hedera-harness-go/actions/workflows/ci.yml"><img src="https://github.com/Gmin2/hedera-harness-go/actions/workflows/ci.yml/badge.svg" alt="Build Status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-6B50FF" alt="License"></a>
 </p>
 
-Claude Code for Hedera. Describe a dapp, hh builds it, deploys it to testnet, and a harness decides whether it works.
+A harness for the Hedera ecosystem. Build dapps with an agent, run real transactions, and check the result on chain in code.
 
-<img alt="hh" src="demo/assets/hh.gif" width="600" />
+<img alt="Welcome to hh" src="demo/assets/hh.gif" width="600" />
 
-The above example was recorded with [VHS](https://github.com/charmbracelet/vhs) ([view source](./demo/hero.tape)).
+The above example was generated with [VHS](https://github.com/charmbracelet/vhs) ([view source](./demo/hero.tape)).
 
 ## Tutorial
 
-Create a dapp project. It is [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar) with an `hh.yaml` and the official [hedera skills](https://github.com/hedera-dev/hedera-skills) for claude.
+Start a project and run its first scenario. No account and no network needed, it runs on an in process mock.
+
+```sh
+hh init my-project
+cd my-project && hh run
+```
+
+<img alt="hh init" src="demo/assets/init.gif" width="600" />
+
+## Build a dapp
+
+Create a [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar) project with the official [hedera skills](https://github.com/hedera-dev/hedera-skills), then describe what you want.
 
 ```sh
 hh init --scaffold-hbar my-dapp --install
 cd my-dapp && cp .env.example .env    # a testnet account from portal.hedera.com
-```
-
-Open hh and describe what you want.
-
-```sh
 hh
 ```
 
 ```
-build a page where I can swap HBAR for USDC at a fixed rate of 1 HBAR = 0.05 USDC.
-deploy a USDC test token the swap contract can mint, add a faucet button,
-and show my HBAR and USDC balances
+build a page where I can swap HBAR for USDC
 ```
 
-Claude writes the contracts, deploy scripts and the page. It has no keys. After every attempt hh compiles, type checks and deploys to testnet with the connected wallet (ctrl+w), and sends any failure back into the same conversation until it passes. Then:
+The agent writes the contracts, deploy scripts and the page. It never holds a key. After every attempt hh compiles, type checks and deploys to testnet with the connected wallet, and sends failures back into the same conversation until everything passes.
 
-```sh
-yarn next:start    # http://localhost:3000
-```
+<img alt="the agent loop" src="demo/assets/agent.gif" width="600" />
 
 ## Scenarios
 
-Under the agent is a harness you can use on its own: yaml scenarios that run real hedera transactions and check the result on the mirror node, in code.
+A scenario runs real hedera transactions with named accounts, then checks chain state on the mirror node.
 
 ```yaml
 actors:
-  issuer: { hbar: 20 }
-  alice: { key: ed25519 }
+  alice: {}
+  bob: {}
 
 steps:
-  - token.create: { as: gold, name: Gold, symbol: GLD, initial_supply: 1000, treasury: issuer, kyc_key: issuer }
-  - token.associate: { account: alice, token: gold }
-  - token.transfer: { token: gold, from: issuer, to: alice, amount: 5, expect: ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN }
+  - hbar.transfer: { from: alice, to: bob, amount: 2.5 }
 
 assert:
-  - token.balance: { account: alice, token: gold, equals: 0 }
+  - account.hbar: { account: bob, equals: 12.5 }
 ```
 
 ```sh
-hh run examples/               # on an in process mock network, milliseconds, no keys
-hh run examples/ -n testnet    # the same files on real testnet
+hh run examples/01-first-transfer.yaml               # mock, milliseconds
+hh run examples/01-first-transfer.yaml -n testnet    # the same file on testnet
 ```
 
 <img alt="hh run" src="demo/assets/run.gif" width="600" />
 
-All seven [examples](./examples) pass on testnet ([results and hashscan links](./docs/guide.md#verified-on-testnet)). Tokens with kyc, freeze, pause, airdrops, nfts and custom fees, topics with running hash verification, and multisig schedules.
+Tokens with kyc, freeze and pause, airdrops, nfts, custom fees, topics with running hash verification and multisig schedules are all covered, and all seven [examples](./examples) pass on testnet ([hashscan links](./docs/guide.md#verified-on-testnet)).
+
+## Check before you spend
+
+Scenarios are validated offline, with the line of every mistake.
+
+```sh
+hh check scenario.yaml
+```
+
+<img alt="hh check" src="demo/assets/check.gif" width="600" />
 
 ## Installation
 
@@ -78,7 +88,7 @@ curl -sL https://github.com/Gmin2/hedera-harness-go/releases/latest/download/hh_
 go install github.com/Gmin2/hedera-harness-go@latest
 ```
 
-Agent mode uses the [claude cli](https://claude.com/claude-code) with your existing login.
+The agent uses the [claude cli](https://claude.com/claude-code) with your existing login.
 
 ## Commands
 
@@ -86,7 +96,7 @@ Agent mode uses the [claude cli](https://claude.com/claude-code) with your exist
 |---|---|
 | `hh` | the tui: prompts, `/judge`, `/check`, ctrl+w wallet, ctrl+r scenarios, ctrl+n network |
 | `hh init [--scaffold-hbar]` | start a project or a dapp |
-| `hh agent <prompt>` | the same loop from the cli |
+| `hh agent <prompt>` | the agent loop from the cli |
 | `hh run`, `hh check` | run or validate scenarios |
 | `hh wallet`, `hh doctor` | check the account before spending anything |
 
@@ -98,7 +108,7 @@ hh takes direct inspiration from [hedera-dev/hedera-harness](https://github.com/
 
 | | hedera-harness | hh |
 |---|---|---|
-| start a feature | write a recipe: spec, prd, validators, checklist | one sentence |
+| start a feature | a recipe: spec, prd, validators, checklist | one sentence |
 | agent | unattended batch run | a streaming conversation |
 | chain checks | an llm reads curl output | scenarios evaluated in code |
 | networks | testnet | mock, solo, testnet |

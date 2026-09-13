@@ -2,7 +2,7 @@
 # renders every tape. readme gifs land in demo/assets, video clips in demo/out
 set -euo pipefail
 cd "$(dirname "$0")/.."
-for tape in hero run compare; do
+for tape in hero agent run check init compare; do
   echo "rendering $tape"
   vhs "demo/$tape.tape"
 done

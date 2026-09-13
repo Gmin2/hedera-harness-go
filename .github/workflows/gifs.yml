@@ -1,0 +1,40 @@
+name: gifs
+
+# renders the readme gifs from demo/*.tape and commits them back to the branch
+on:
+  workflow_dispatch:
+  push:
+    branches-ignore: [main]
+    paths: ["demo/*.tape", ".github/workflows/gifs.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - uses: charmbracelet/vhs-action@v2
+        with:
+          path: demo/hero.tape
+      - uses: charmbracelet/vhs-action@v2
+        with:
+          path: demo/agent.tape
+      - uses: charmbracelet/vhs-action@v2
+        with:
+          path: demo/run.tape
+      - uses: charmbracelet/vhs-action@v2
+        with:
+          path: demo/check.tape
+      - uses: charmbracelet/vhs-action@v2
+        with:
+          path: demo/init.tape
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: render readme gifs
+          file_pattern: demo/assets/*.gif
