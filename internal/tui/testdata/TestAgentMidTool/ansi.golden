@@ -14,8 +14,8 @@
      [38;2;96;95;107m… (7 lines hidden)[m                                                                 [38;2;96;95;107m◇[m [48;2;18;199;143m [38;2;32;31;38;1mmock[39;22m [m [38;2;96;95;107moperator [38;2;133;131;146m0.0.2[m
 
    [38;2;236;235;240mThe scenario schedules an hbar transfer from bob to carol and expects it to[m          [38;2;96;95;107mAgent[m [38;2;58;57;67m───────────────────────[m
-   [38;2;236;235;240mexecute. I'll add a payout helper that creates the schedule and wire it into the[m     [38;2;18;199;143m●[m [38;2;191;188;200mattempt 1          [m [38;2;133;131;146mworking[m
-   [38;2;236;235;240mtreasury command.[m                                                                      [38;2;96;95;107m0 turns · $0.00[m
+   [38;2;236;235;240mexecute. I'll add a payout helper that creates the schedule and wire it into the[m     [38;2;18;199;143m●[m [38;2;191;188;200mturn 1             [m [38;2;133;131;146mworking[m
+   [38;2;236;235;240mtreasury command.[m                                                                      [38;2;96;95;107m$0.00 this conversation[m
 
    [38;2;0;255;178m✓[m [38;2;0;164;255mWrite[m [38;2;133;131;146minternal/payout/payout.go[m                                                    [38;2;96;95;107mJudges[m [38;2;58;57;67m──────────────────────[m
                                                                                         [38;2;77;76;87m○[m [38;2;191;188;200mtoken-flow[m

@@ -19,31 +19,40 @@ type Judge struct {
 	Status event.Status
 }
 
-// Session is one agent prompt as seen by the ui: every attempt of the coding
-// agent, the tools it called and the judge runs that checked the result.
+// Session is an agent conversation as seen by the ui. Every prompt sent with
+// Send is a turn: the prompt, each attempt of the coding agent, the tools it
+// called and the judge runs that checked the result. Turns stack in one list.
 type Session struct {
 	sty    *styles.Styles
 	static bool
 
-	Prompt  string
+	Prompt  string // the latest prompt
 	Agent   string
 	Network string
 
-	parts    []part
-	pending  *pendingItem
-	thinking *pendingItem
-	tools    map[string]*toolItem
-	runs     []*Run
-	judges   []Judge
+	parts     []part
+	runs      []*Run
+	model     string
+	sessionID string
+	cost      float64
+	turn      int
 
-	attempt  int
-	model    string
-	turns    int
-	cost     float64
-	working  bool
-	result   *event.LoopFinished
-	canceled bool
-	done     bool
+	// state of the current turn, reset by Send
+	pending     *pendingItem
+	thinking    *pendingItem
+	live        *textItem
+	tools       map[string]*toolItem
+	judges      []Judge
+	runStart    int
+	attempt     int
+	maxAttempts int
+	turnCost    float64
+	footers     int
+	judged      bool
+	working     bool
+	result      *event.LoopFinished
+	canceled    bool
+	done        bool
 }
 
 // part is either a plain item or a judge run whose items are spliced in.
@@ -52,34 +61,52 @@ type part struct {
 	run  *Run
 }
 
-// NewSession starts a session for prompt. agent is the display name of the
-// coding agent, judges the scenarios selected to check its work.
-func NewSession(sty *styles.Styles, agent, prompt, network string, judges []Judge, static bool) *Session {
-	s := &Session{
-		sty:     sty,
-		static:  static,
-		Prompt:  prompt,
-		Agent:   agent,
-		Network: network,
-		tools:   make(map[string]*toolItem),
-		judges:  append([]Judge(nil), judges...),
-	}
-	s.add(&promptItem{sty: sty, text: prompt})
-	s.pending = &pendingItem{sty: sty, name: agent, anim: newSpinner(sty, static, "agent", "Starting")}
+// NewSession starts an empty conversation. agent is the display name of the
+// coding agent. Nothing runs until the first Send.
+func NewSession(sty *styles.Styles, agent string, static bool) *Session {
+	return &Session{sty: sty, static: static, Agent: agent, done: true}
+}
+
+// Send starts a new turn for prompt under the previous ones. judges are the
+// scenarios selected to check this turn.
+func (s *Session) Send(prompt, network string, judges []Judge) {
+	s.halt()
+	s.Prompt = prompt
+	s.Network = network
+	s.turn++
+	s.tools = make(map[string]*toolItem)
+	s.judges = append([]Judge(nil), judges...)
+	s.runStart = len(s.runs)
+	s.attempt, s.maxAttempts = 0, 0
+	s.turnCost = 0
+	s.footers = 0
+	s.judged = false
+	s.result = nil
+	s.canceled = false
+	s.done = false
+
+	s.add(&promptItem{sty: s.sty, text: prompt})
+	s.pending = &pendingItem{sty: s.sty, name: s.Agent, anim: newSpinner(s.sty, s.static, "agent"+strconv.Itoa(s.turn), "Starting")}
 	s.add(s.pending)
-	return s
 }
 
 func (s *Session) add(it Item) {
 	s.parts = append(s.parts, part{item: it})
 }
 
-// Apply folds one agent or judge event into the session.
+// Apply folds one agent or judge event into the current turn.
 func (s *Session) Apply(ev event.Event) {
 	switch ev := ev.(type) {
 	case event.AgentStarted:
 		s.dropPending()
+		s.closeText()
 		s.attempt = ev.Attempt
+		if ev.MaxAttempts > 0 {
+			s.maxAttempts = ev.MaxAttempts
+		}
+		if ev.Turn > 0 {
+			s.turn = ev.Turn
+		}
 		if ev.Agent != "" {
 			s.Agent = ev.Agent
 		}
@@ -88,52 +115,85 @@ func (s *Session) Apply(ev event.Event) {
 		}
 		s.working = true
 		s.thinking = &pendingItem{sty: s.sty, name: s.Agent, anim: newSpinner(s.sty, s.static, "thinking", "Thinking")}
-		title := "Attempt " + strconv.Itoa(ev.Attempt) + " " + styles.Dot + " " + s.Agent
-		if ev.Repair {
-			title = "Attempt " + strconv.Itoa(ev.Attempt) + " " + styles.Dot + " repair"
+		// Repairs get a rule. The first attempt only gets one when it opens
+		// a judged conversation, later turns read like a chat.
+		switch {
+		case ev.Repair || ev.Attempt > 1:
+			s.add(&ruleItem{sty: s.sty, title: "Attempt " + strconv.Itoa(ev.Attempt) + " " + styles.Dot + " repair"})
+		case s.first() && len(s.judges) > 0:
+			s.add(&ruleItem{sty: s.sty, title: "Attempt " + strconv.Itoa(ev.Attempt) + " " + styles.Dot + " " + s.Agent})
 		}
-		s.add(&ruleItem{sty: s.sty, title: title})
+
+	case event.AgentTextDelta:
+		s.dropPending()
+		if ev.Text == "" {
+			return
+		}
+		if s.live == nil || s.live.attempt != ev.Attempt || s.last() != Item(s.live) {
+			s.live = &textItem{sty: s.sty, attempt: ev.Attempt, live: true}
+			s.add(s.live)
+		}
+		s.live.text += ev.Text
 
 	case event.AgentText:
 		s.dropPending()
 		text := strings.TrimSpace(ev.Text)
+		if live := s.live; live != nil && live.attempt == ev.Attempt {
+			s.live = nil
+			live.live = false
+			live.text = text
+			if text == "" {
+				s.remove(live)
+			}
+			return
+		}
 		if text == "" {
 			return
 		}
-		if last, ok := s.last().(*textItem); ok {
+		if last, ok := s.last().(*textItem); ok && !last.live {
 			last.text += "\n\n" + text
 			return
 		}
-		s.add(&textItem{sty: s.sty, text: text})
+		s.add(&textItem{sty: s.sty, attempt: ev.Attempt, text: text})
 
 	case event.AgentTool:
 		s.dropPending()
+		s.closeText()
 		s.tool(ev.ID, ev.Name).call = ev
 
 	case event.AgentToolResult:
+		s.closeText()
 		t := s.tool(ev.ID, ev.Name)
 		t.result = &ev
 
 	case event.AgentFinished:
 		s.dropPending()
+		s.closeText()
 		s.working = false
 		if ev.Model != "" {
 			s.model = ev.Model
 		}
-		s.turns += ev.Turns
+		if ev.SessionID != "" {
+			s.sessionID = ev.SessionID
+		}
+		s.turnCost += ev.CostUSD
 		s.cost += ev.CostUSD
 		s.haltTools()
+		s.footers++
 		s.add(&agentFooterItem{sty: s.sty, agent: s.Agent, model: s.model, fin: ev})
 
 	case event.RunStarted:
 		s.dropPending()
+		s.closeText()
 		s.working = false
+		s.judged = true
 		r := s.startJudge(ev.Path, ev.Network)
 		r.Apply(ev)
 		s.setJudge(ev.Path, ev.Scenario, event.Running)
 
 	case event.ActorReady, event.StepStarted, event.StepFinished,
 		event.AssertionStarted, event.AssertionFinished:
+		s.judged = true
 		s.judgeRun().Apply(ev)
 
 	case event.Log:
@@ -141,26 +201,39 @@ func (s *Session) Apply(ev event.Event) {
 			r.Apply(ev)
 			return
 		}
+		s.closeText()
 		s.add(&logItem{sty: s.sty, log: ev})
 
 	case event.RunFinished:
+		s.judged = true
 		r := s.judgeRun()
 		r.Apply(ev)
 		s.setJudge(r.Path, r.Info.Scenario, ev.Status)
 
 	case event.JudgeFinished:
+		s.judged = true
 		s.add(&judgeSummaryItem{sty: s.sty, fin: ev})
 
 	case event.LoopFinished:
 		s.result = &ev
-		s.cost = max(s.cost, ev.CostUSD)
+		if ev.SessionID != "" {
+			s.sessionID = ev.SessionID
+		}
+		if ev.CostUSD > s.turnCost {
+			s.cost += ev.CostUSD - s.turnCost
+			s.turnCost = ev.CostUSD
+		}
 		s.halt()
-		s.add(&loopFooterItem{sty: s.sty, result: ev})
+		// A plain chat turn already closed with its agent footer.
+		if s.judged || ev.Status != event.Passed || s.footers == 0 {
+			s.add(&loopFooterItem{sty: s.sty, result: ev})
+		}
 	}
 }
 
-// End is called when the agent func returns. A loop that never reported
-// its result is closed as canceled or failed.
+// End is called when the agent func returns. A turn that never reported its
+// result is closed as canceled or failed. The session id is kept either way
+// so the conversation can go on.
 func (s *Session) End(err error) {
 	if s.result != nil {
 		s.done = true
@@ -170,7 +243,7 @@ func (s *Session) End(err error) {
 	if r := s.Current(); r != nil && !r.Done() {
 		r.End(err)
 	}
-	res := event.LoopFinished{Status: event.Failed, Attempts: s.attempt, CostUSD: s.cost}
+	res := event.LoopFinished{Status: event.Failed, SessionID: s.sessionID, Attempts: s.attempt, CostUSD: s.turnCost}
 	if err != nil && !canceled {
 		res.Error = err.Error()
 	}
@@ -184,6 +257,7 @@ func (s *Session) halt() {
 	s.done = true
 	s.working = false
 	s.dropPending()
+	s.closeText()
 	s.haltTools()
 }
 
@@ -193,17 +267,29 @@ func (s *Session) haltTools() {
 	}
 }
 
+// closeText stops the live text item from taking more deltas.
+func (s *Session) closeText() {
+	if s.live != nil {
+		s.live.live = false
+		s.live = nil
+	}
+}
+
 func (s *Session) dropPending() {
 	if s.pending == nil {
 		return
 	}
+	s.remove(s.pending)
+	s.pending = nil
+}
+
+func (s *Session) remove(it Item) {
 	for i, p := range s.parts {
-		if p.item == Item(s.pending) {
+		if p.item == it {
 			s.parts = append(s.parts[:i], s.parts[i+1:]...)
-			break
+			return
 		}
 	}
-	s.pending = nil
 }
 
 func (s *Session) last() Item {
@@ -211,6 +297,19 @@ func (s *Session) last() Item {
 		return nil
 	}
 	return s.parts[len(s.parts)-1].item
+}
+
+// first reports whether the current turn is the one that opened the list.
+func (s *Session) first() bool {
+	if len(s.parts) == 0 {
+		return true
+	}
+	for _, p := range s.parts[1:] {
+		if _, ok := p.item.(*promptItem); ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Session) tool(id, name string) *toolItem {
@@ -245,6 +344,7 @@ func (s *Session) judgeRun() *Run {
 		return r
 	}
 	s.dropPending()
+	s.closeText()
 	return s.startJudge("", "")
 }
 
@@ -275,7 +375,7 @@ func (s *Session) setJudge(path, name string, status event.Status) {
 	s.judges = append(s.judges, Judge{Name: name, Path: path, Status: status})
 }
 
-// Items is the session list in display order, judge runs included.
+// Items is the conversation in display order, judge runs included.
 func (s *Session) Items() []Item {
 	var out []Item
 	for _, p := range s.parts {
@@ -285,7 +385,7 @@ func (s *Session) Items() []Item {
 		}
 		out = append(out, p.item)
 	}
-	if s.working && s.thinking != nil {
+	if s.working && s.thinking != nil && s.live == nil {
 		if t, ok := s.last().(*toolItem); !ok || !t.spinning() {
 			out = append(out, s.thinking)
 		}
@@ -312,29 +412,43 @@ func (s *Session) Advance() {
 	}
 }
 
-// Current is the latest judge run, nil before the first one starts.
+// Current is the latest judge run of this turn, nil before one starts.
 func (s *Session) Current() *Run {
-	if len(s.runs) == 0 {
+	if len(s.runs) == s.runStart {
 		return nil
 	}
 	return s.runs[len(s.runs)-1]
 }
 
-// Runs is every judge run so far, oldest first.
+// Runs is every judge run in the conversation, oldest first.
 func (s *Session) Runs() []*Run { return s.runs }
 
 func (s *Session) Judges() []Judge { return s.judges }
 func (s *Session) Attempt() int    { return s.attempt }
 func (s *Session) Model() string   { return s.model }
-func (s *Session) Turns() int      { return s.turns }
-func (s *Session) Cost() float64   { return s.cost }
 func (s *Session) Done() bool      { return s.done }
 func (s *Session) Canceled() bool  { return s.canceled }
 
-// Result is the loop outcome, nil while it is still going.
+// MaxAttempts is how many attempts the loop allows per turn, 0 if unknown.
+func (s *Session) MaxAttempts() int { return s.maxAttempts }
+
+// Turn is the number of prompts sent in this conversation.
+func (s *Session) Turn() int { return s.turn }
+
+// Cost is what the whole conversation has spent so far.
+func (s *Session) Cost() float64 { return s.cost }
+
+// Judged reports whether judges ran in the current turn.
+func (s *Session) Judged() bool { return s.judged }
+
+// SessionID is the agent session to continue with the next prompt, empty
+// until the agent reports one.
+func (s *Session) SessionID() string { return s.sessionID }
+
+// Result is the outcome of the current turn, nil while it is still going.
 func (s *Session) Result() *event.LoopFinished { return s.result }
 
-// Stage is what the loop is doing, for headers: starting, working,
+// Stage is what the current turn is doing, for headers: starting, working,
 // judging or done.
 func (s *Session) Stage() string {
 	switch {

@@ -326,9 +326,10 @@ func (m *Model) setFocus(f uiFocus) {
 	}
 }
 
-// submit runs one line typed into the editor. A line is a command when it
-// starts with a command word and has at most one argument. Anything else is
-// a prompt for the agent, when there is one.
+// submit runs one line typed into the editor. A line starting with a slash
+// is always a command. Otherwise it is a command when it starts with a
+// command word and has at most one argument, and anything else is a prompt
+// for the agent, when there is one.
 func (m *Model) submit(line string) tea.Cmd {
 	if line == "" {
 		return nil
@@ -336,10 +337,21 @@ func (m *Model) submit(line string) tea.Cmd {
 	cmd, arg, _ := strings.Cut(line, " ")
 	arg = strings.TrimSpace(arg)
 
+	if name, ok := strings.CutPrefix(cmd, "/"); ok {
+		if !slices.Contains(commandWords, name) {
+			return m.showToast(toastError, fmt.Sprintf("unknown command %q, try /run, /judge, /network, /new, /clear or /quit", cmd))
+		}
+		return m.command(name, arg)
+	}
 	if m.opts.Agent != nil && !m.isCommand(cmd, arg) {
 		return m.requestAgent(line)
 	}
+	return m.command(cmd, arg)
+}
 
+var commandWords = []string{"run", "judge", "network", "clear", "new", "quit", "exit"}
+
+func (m *Model) command(cmd, arg string) tea.Cmd {
 	switch cmd {
 	case "run":
 		if arg == "" {
@@ -370,6 +382,8 @@ func (m *Model) submit(line string) tea.Cmd {
 		return m.setNetwork(arg)
 	case "clear":
 		return m.clearRun()
+	case "new":
+		return m.newConversation()
 	case "quit", "exit":
 		if m.running() {
 			m.dialog.Open(dialog.NewQuit(m.sty, true))
@@ -393,7 +407,7 @@ func (m *Model) isCommand(cmd, arg string) bool {
 		return ok
 	case "network":
 		return !strings.ContainsAny(arg, " \t\n")
-	case "clear", "quit", "exit":
+	case "clear", "new", "quit", "exit":
 		return arg == ""
 	}
 	return false
@@ -433,9 +447,18 @@ func (m *Model) running() bool {
 	return a != nil && !a.Done()
 }
 
+// busy is the warning for starting something while the agent or a scenario
+// is still going.
+func (m *Model) busy() tea.Cmd {
+	if m.session != nil {
+		return m.showToast(toastWarn, m.opts.AgentName+" is still working, esc to cancel")
+	}
+	return m.showToast(toastWarn, "a scenario is already running, esc cancels it")
+}
+
 func (m *Model) requestRun(path string, confirmed bool) tea.Cmd {
 	if m.running() {
-		return m.showToast(toastWarn, "a scenario is already running, esc cancels it")
+		return m.busy()
 	}
 	if m.network == "testnet" && !confirmed {
 		m.dialog.Open(dialog.NewTestnetConfirm(m.sty, m.scenarioName(path), path, m.operator))
@@ -471,31 +494,40 @@ func (m *Model) launch(path string) tea.Cmd {
 	}
 }
 
-// requestAgent starts the agent loop for prompt.
+// requestAgent sends prompt to the agent. It continues the current
+// conversation when there is one, otherwise it starts a new list.
 func (m *Model) requestAgent(prompt string) tea.Cmd {
 	if m.running() {
-		return m.showToast(toastWarn, "already busy, esc cancels it")
+		// hand the text back so it is not lost
+		m.editor.SetValue(prompt)
+		return m.busy()
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.cancel = cancel
 	m.runGen++
 	gen := m.runGen
 
-	judges := make([]run.Judge, len(m.judges))
-	for i, path := range m.judges {
-		judges[i] = run.Judge{Name: m.scenarioName(path), Path: path}
+	if m.session == nil {
+		m.session = run.NewSession(m.sty, m.opts.AgentName, m.opts.NoAnim)
+		m.run = nil
+		m.view = run.NewView()
 	}
-	m.session = run.NewSession(m.sty, m.opts.AgentName, prompt, m.network, judges, m.opts.NoAnim)
-	m.run = nil
-	m.view = run.NewView()
+	req := AgentRequest{
+		Prompt:    prompt,
+		Judges:    slices.Clone(m.judges),
+		Network:   m.network,
+		SessionID: m.session.SessionID(),
+	}
+	m.session.Send(prompt, m.network, m.selectedJudges())
+	m.view.ScrollToBottom()
 	m.state = stateRun
 	m.detailsOpen = false
+	m.setFocus(focusEditor)
 	m.updatePlaceholder()
 
-	agent, send, network := m.opts.Agent, m.send, m.network
-	paths := slices.Clone(m.judges)
+	agent, send := m.opts.Agent, m.send
 	return func() tea.Msg {
-		err := agent(ctx, prompt, paths, network, func(ev event.Event) {
+		err := agent(ctx, req, func(ev event.Event) {
 			if send != nil {
 				send(eventMsg{gen: gen, ev: ev})
 			}
@@ -571,11 +603,13 @@ func (m *Model) cancelRunWithToast() tea.Cmd {
 
 func (m *Model) clearRun() tea.Cmd {
 	if m.running() {
-		return m.showToast(toastWarn, "cannot clear while a scenario is running")
+		return m.busy()
 	}
 	switch {
 	case m.session != nil:
-		m.rememberRun(m.session.Current())
+		if runs := m.session.Runs(); len(runs) > 0 {
+			m.rememberRun(runs[len(runs)-1])
+		}
 	case m.run != nil:
 		m.rememberRun(m.run)
 	}
@@ -587,6 +621,15 @@ func (m *Model) clearRun() tea.Cmd {
 	m.setFocus(focusEditor)
 	m.updatePlaceholder()
 	return nil
+}
+
+// newConversation forgets the agent session so the next prompt starts over.
+func (m *Model) newConversation() tea.Cmd {
+	if m.running() {
+		return m.busy()
+	}
+	m.clearRun()
+	return m.showToast(toastSuccess, "new conversation")
 }
 
 func (m *Model) rememberRun(r *run.Run) {
@@ -622,7 +665,7 @@ func (m *Model) updatePlaceholder() {
 	case m.session != nil && m.running():
 		m.editor.Placeholder = agent + " is working... esc to cancel"
 	case m.session != nil:
-		m.editor.Placeholder = "Loop finished. Send another prompt, run <scenario> or clear"
+		m.editor.Placeholder = "Reply, or /new to start over"
 	case m.running():
 		m.editor.Placeholder = "Running " + m.scenarioName(m.run.Path) + "... esc to cancel"
 	case m.run != nil:
@@ -644,6 +687,9 @@ func (m *Model) openCommands() {
 	}
 	if len(m.judges) > 0 {
 		items = append(items, dialog.Item{Title: "Clear judges", Value: "clear-judges"})
+	}
+	if m.opts.Agent != nil {
+		items = append(items, dialog.Item{Title: "New conversation", Info: "/new", Value: "new"})
 	}
 	if m.running() {
 		title := "Cancel run"
@@ -765,6 +811,8 @@ func (m *Model) handleAction(a dialog.Action) tea.Cmd {
 			}
 		case "clear":
 			return m.clearRun()
+		case "new":
+			return m.newConversation()
 		case "details":
 			m.detailsOpen = !m.detailsOpen
 		case "help":
