@@ -46,7 +46,7 @@ func sendPrompt(t *testing.T, m *Model, prompt string, stop func(event.Event) bo
 	if m.session == nil || m.session.Prompt != prompt {
 		t.Fatal("prompt did not start an agent turn")
 	}
-	req := demo.Request{Prompt: prompt, Judges: m.judges, Network: m.network, SessionID: sessionID}
+	req := demoRequest(AgentRequest{Prompt: prompt, Judges: m.judges, Checks: m.checks, Network: m.network, SessionID: sessionID})
 	for _, ev := range demo.AgentEvents(req, m.session.Turn()) {
 		m.Update(eventMsg{gen: m.runGen, ev: ev})
 		if stop != nil && stop(ev) {
@@ -54,6 +54,14 @@ func sendPrompt(t *testing.T, m *Model, prompt string, stop func(event.Event) bo
 		}
 	}
 	m.Update(launchDoneMsg{gen: m.runGen})
+}
+
+func demoRequest(req AgentRequest) demo.Request {
+	out := demo.Request{Prompt: req.Prompt, Network: req.Network, SessionID: req.SessionID, Judges: req.Judges}
+	for _, c := range req.Checks {
+		out.Checks = append(out.Checks, demo.Check(c))
+	}
+	return out
 }
 
 func addJudges(m *Model, names ...string) {
@@ -208,7 +216,7 @@ func TestAgentProgram(t *testing.T) {
 	opts.Agent = func(ctx context.Context, req AgentRequest, sink event.Sink) error {
 		defer close(finished)
 		gotPrompt, gotJudges = req.Prompt, req.Judges
-		for _, ev := range demo.AgentEvents(demo.Request(req), 1) {
+		for _, ev := range demo.AgentEvents(demoRequest(req), 1) {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -277,7 +285,7 @@ func converse(t *testing.T, m *Model, reqs *[]AgentRequest, prompt string) {
 	}
 	done := m.submitCmd(t, cmd)
 	req := (*reqs)[len(*reqs)-1]
-	for _, ev := range demo.AgentEvents(demo.Request(req), m.session.Turn()) {
+	for _, ev := range demo.AgentEvents(demoRequest(req), m.session.Turn()) {
 		m.Update(eventMsg{gen: m.runGen, ev: ev})
 	}
 	m.Update(done)

@@ -19,6 +19,13 @@ type Scenario struct {
 	Steps, Assertions       int
 }
 
+// Check is a shell command that judges the agent's work next to the
+// scenarios, like a build or a test suite.
+type Check struct {
+	Name string // short label, defaults to the command
+	Run  string // shell command
+}
+
 type Options struct {
 	Version   string
 	Cwd       string
@@ -37,14 +44,19 @@ type Options struct {
 	// attempts) and streams events into sink. nil means agent mode is unavailable.
 	Agent     func(ctx context.Context, req AgentRequest, sink event.Sink) error
 	AgentName string // e.g. "claude", shown in the ui
+
+	Judges  []string // judge scenario paths preloaded from hh.yaml
+	Checks  []Check  // checks preloaded from hh.yaml
+	Project string   // path of the loaded hh.yaml, empty when none
 }
 
 // AgentRequest is one prompt sent to the agent.
 type AgentRequest struct {
 	Prompt    string
-	Judges    []string // scenario paths used to check the work
 	Network   string
-	SessionID string // empty starts a new conversation, otherwise continue it
+	SessionID string   // empty starts a new conversation, otherwise continue it
+	Judges    []string // scenario paths used to check the work
+	Checks    []Check  // shell commands run before the judge scenarios
 }
 
 // Run starts the tui and blocks until the user quits or ctx is done.

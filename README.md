@@ -32,6 +32,27 @@ go build -o hh .
 
 or without cloning: `go install github.com/Gmin2/hedera-harness-go@latest` (the binary is named `hedera-harness-go`).
 
+Start a project:
+
+```sh
+./hh init my-project && cd my-project   # hh.yaml, scenarios/first-transfer.yaml, .env.example
+../hh run                               # runs the judges listed in hh.yaml
+../hh                                   # tui with those judges preloaded
+```
+
+`hh.yaml` is the one place a project declares its network, scenarios, judges and agent settings. `hh run`, `hh check`, `hh agent` and the tui all read it, flags override it:
+
+```yaml
+network: mock
+scenarios: [scenarios]
+agent: { model: sonnet, max_cost: 2, max_attempts: 3, timeout: 20m }
+judge:
+  scenarios: [scenarios/first-transfer.yaml]
+  checks:
+    - go test ./...                                     # any shell command that must exit 0
+    - { name: contracts, run: yarn hardhat:test, timeout: 5m }
+```
+
 A scenario:
 
 ```yaml
@@ -59,7 +80,7 @@ assert:
 
 ## agent mode
 
-Like [hedera-dev/hedera-harness](https://github.com/hedera-dev/hedera-harness), hh can put a coding agent to work and decide itself whether the work passed. It drives the `claude` cli (your existing claude code login, no api key), streams every message and tool call, then runs the judge scenarios. A failing judge sends its findings back into the same claude session as a repair prompt.
+Like [hedera-dev/hedera-harness](https://github.com/hedera-dev/hedera-harness), hh can put a coding agent to work and decide itself whether the work passed. It drives the `claude` cli (your existing claude code login, no api key), streams every message and tool call, then runs the judges: checks first (shell commands like a build or tests, `--check` or `judge.checks`), then scenarios. A failing judge sends its findings back into the same claude session as a repair prompt.
 
 ```sh
 hh agent "write stablecoin.yaml: token USDX with 2 decimals and a kyc key. alice gets kyc and 250.00 USDX, a transfer to bob without kyc must fail" \
@@ -125,6 +146,7 @@ The mock charges no fees so hbar assertions are exact. Write `gte`/`lte` for acc
 |---|---|
 | `hh` | interactive ui: pick a scenario (ctrl+r), switch network (ctrl+n), watch it run |
 | `hh run <file\|dir>...` | run scenarios, exit 1 on any failure. `--json` for ci, `--keep-going`, `--timeout` |
+| `hh init [dir]` | create hh.yaml, a starter scenario and .env.example |
 | `hh agent <prompt> --judge <file>` | let claude code do a task, judge it with scenarios, repair until it passes |
 | `hh check <file\|dir>...` | validate scenarios offline: unknown fields, unknown names, steps that use a name before it exists |
 | `hh doctor` | preflight a network and operator before spending anything |

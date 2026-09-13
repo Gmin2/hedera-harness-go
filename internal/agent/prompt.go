@@ -10,7 +10,7 @@ import (
 
 // SystemPrompt teaches the agent the scenario format and how to check its
 // own work with hh before it stops.
-func SystemPrompt(hh string, judges []string, network string) string {
+func SystemPrompt(hh string, judges []string, checks []Check, network string) string {
 	var b strings.Builder
 	b.WriteString(`You are working inside hh, a Hedera harness. hh runs YAML scenarios against Hedera
 (an in process mock network, solo, or testnet) and checks results on the mirror node.
@@ -64,16 +64,30 @@ They must pass. Run them yourself with %s run <file> before you finish. Do not w
 an assertion to make it pass unless the task says the assertion is wrong.
 `, network, bullet(judges), hh)
 	}
+	if len(checks) > 0 {
+		var cmds []string
+		for _, c := range checks {
+			cmds = append(cmds, c.Run)
+		}
+		fmt.Fprintf(&b, `
+These commands must also exit 0 in the project directory when you stop:
+%s
+Run them before you finish.
+`, bullet(cmds))
+	}
 	b.WriteString("\nKeep the final reply short: what you changed and the check you ran.\n")
 	return b.String()
 }
 
 // RepairPrompt asks the agent to fix what the judge found, in the same session.
-func RepairPrompt(findings []string, judges []string, hh, network string) string {
+func RepairPrompt(findings []string, judges []string, checks []Check, hh, network string) string {
 	var b strings.Builder
 	b.WriteString("hh judged your work and it did not pass. Findings:\n")
 	b.WriteString(bullet(findings))
 	fmt.Fprintf(&b, "\nFix the cause, then confirm with:\n")
+	for _, c := range checks {
+		fmt.Fprintf(&b, "  %s\n", c.Run)
+	}
 	for _, j := range judges {
 		fmt.Fprintf(&b, "  %s run %s --network %s\n", hh, j, network)
 	}

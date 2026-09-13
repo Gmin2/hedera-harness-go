@@ -19,6 +19,14 @@ type Judge struct {
 	Status event.Status
 }
 
+// Check is a shell command that judges the agent's work, with the status of
+// its latest run.
+type Check struct {
+	Name    string
+	Command string
+	Status  event.Status
+}
+
 // Session is an agent conversation as seen by the ui. Every prompt sent with
 // Send is a turn: the prompt, each attempt of the coding agent, the tools it
 // called and the judge runs that checked the result. Turns stack in one list.
@@ -43,12 +51,15 @@ type Session struct {
 	live        *textItem
 	tools       map[string]*toolItem
 	judges      []Judge
+	checks      []Check
+	checkItems  []*checkItem // checks of the current attempt
 	runStart    int
 	attempt     int
 	maxAttempts int
 	turnCost    float64
 	footers     int
 	judged      bool
+	judging     bool // between the first check or judge run and JudgeFinished
 	working     bool
 	result      *event.LoopFinished
 	canceled    bool
@@ -67,15 +78,17 @@ func NewSession(sty *styles.Styles, agent string, static bool) *Session {
 	return &Session{sty: sty, static: static, Agent: agent, done: true}
 }
 
-// Send starts a new turn for prompt under the previous ones. judges are the
-// scenarios selected to check this turn.
-func (s *Session) Send(prompt, network string, judges []Judge) {
+// Send starts a new turn for prompt under the previous ones. judges and
+// checks are what the loop verifies this turn with.
+func (s *Session) Send(prompt, network string, judges []Judge, checks []Check) {
 	s.halt()
 	s.Prompt = prompt
 	s.Network = network
 	s.turn++
 	s.tools = make(map[string]*toolItem)
 	s.judges = append([]Judge(nil), judges...)
+	s.checks = append([]Check(nil), checks...)
+	s.checkItems = nil
 	s.runStart = len(s.runs)
 	s.attempt, s.maxAttempts = 0, 0
 	s.turnCost = 0
@@ -114,13 +127,15 @@ func (s *Session) Apply(ev event.Event) {
 			s.model = ev.Model
 		}
 		s.working = true
+		s.judging = false
+		s.checkItems = nil
 		s.thinking = &pendingItem{sty: s.sty, name: s.Agent, anim: newSpinner(s.sty, s.static, "thinking", "Thinking")}
 		// Repairs get a rule. The first attempt only gets one when it opens
 		// a judged conversation, later turns read like a chat.
 		switch {
 		case ev.Repair || ev.Attempt > 1:
 			s.add(&ruleItem{sty: s.sty, title: "Attempt " + strconv.Itoa(ev.Attempt) + " " + styles.Dot + " repair"})
-		case s.first() && len(s.judges) > 0:
+		case s.first() && (len(s.judges) > 0 || len(s.checks) > 0):
 			s.add(&ruleItem{sty: s.sty, title: "Attempt " + strconv.Itoa(ev.Attempt) + " " + styles.Dot + " " + s.Agent})
 		}
 
@@ -182,11 +197,28 @@ func (s *Session) Apply(ev event.Event) {
 		s.footers++
 		s.add(&agentFooterItem{sty: s.sty, agent: s.Agent, model: s.model, fin: ev})
 
+	case event.CheckStarted:
+		s.dropPending()
+		s.closeText()
+		s.working = false
+		s.judged, s.judging = true, true
+		s.checkItem(ev.Name, ev.Command)
+		s.setCheck(ev.Name, ev.Command, event.Running)
+
+	case event.CheckFinished:
+		s.dropPending()
+		s.closeText()
+		s.working = false
+		s.judged, s.judging = true, true
+		c := s.checkItem(ev.Name, ev.Command)
+		c.fin = &ev
+		s.setCheck(ev.Name, ev.Command, ev.Status)
+
 	case event.RunStarted:
 		s.dropPending()
 		s.closeText()
 		s.working = false
-		s.judged = true
+		s.judged, s.judging = true, true
 		r := s.startJudge(ev.Path, ev.Network)
 		r.Apply(ev)
 		s.setJudge(ev.Path, ev.Scenario, event.Running)
@@ -212,7 +244,15 @@ func (s *Session) Apply(ev event.Event) {
 
 	case event.JudgeFinished:
 		s.judged = true
-		s.add(&judgeSummaryItem{sty: s.sty, fin: ev})
+		s.judging = false
+		sum := &judgeSummaryItem{sty: s.sty, fin: ev}
+		for _, c := range s.checkItems {
+			sum.checks++
+			if c.fin != nil && c.fin.Status != event.Passed {
+				sum.checksFailed++
+			}
+		}
+		s.add(sum)
 
 	case event.LoopFinished:
 		s.result = &ev
@@ -256,9 +296,13 @@ func (s *Session) End(err error) {
 func (s *Session) halt() {
 	s.done = true
 	s.working = false
+	s.judging = false
 	s.dropPending()
 	s.closeText()
 	s.haltTools()
+	for _, c := range s.checkItems {
+		c.halted = true
+	}
 }
 
 func (s *Session) haltTools() {
@@ -324,6 +368,46 @@ func (s *Session) tool(id, name string) *toolItem {
 	s.tools[id] = t
 	s.add(t)
 	return t
+}
+
+// checkItem finds the item for a check of the current attempt, adding one
+// when the check has not been seen yet.
+func (s *Session) checkItem(name, command string) *checkItem {
+	if name == "" {
+		name = command
+	}
+	for _, c := range s.checkItems {
+		if c.name == name && c.fin == nil {
+			return c
+		}
+	}
+	c := &checkItem{
+		sty:     s.sty,
+		name:    name,
+		command: command,
+		anim:    newSpinner(s.sty, s.static, "check"+strconv.Itoa(s.attempt)+name, "Running"),
+	}
+	s.checkItems = append(s.checkItems, c)
+	s.add(c)
+	return c
+}
+
+// setCheck records a check status by name, then command. Checks the loop
+// ran without being asked for are added to the list.
+func (s *Session) setCheck(name, command string, status event.Status) {
+	if name == "" {
+		name = command
+	}
+	for i, c := range s.checks {
+		if c.Name == name || command != "" && c.Command == command {
+			s.checks[i].Status = status
+			return
+		}
+	}
+	if name == "" {
+		return
+	}
+	s.checks = append(s.checks, Check{Name: name, Command: command, Status: status})
 }
 
 func (s *Session) startJudge(path, network string) *Run {
@@ -424,6 +508,7 @@ func (s *Session) Current() *Run {
 func (s *Session) Runs() []*Run { return s.runs }
 
 func (s *Session) Judges() []Judge { return s.judges }
+func (s *Session) Checks() []Check { return s.checks }
 func (s *Session) Attempt() int    { return s.attempt }
 func (s *Session) Model() string   { return s.model }
 func (s *Session) Done() bool      { return s.done }
@@ -456,10 +541,22 @@ func (s *Session) Stage() string {
 		return "done"
 	case s.working:
 		return "working"
+	case s.judging, s.RunningCheck() != "":
+		return "judging"
 	case s.Current() != nil && !s.Current().Done():
 		return "judging"
 	case s.attempt == 0:
 		return "starting"
 	}
 	return "waiting"
+}
+
+// RunningCheck is the name of the check running right now, empty when none is.
+func (s *Session) RunningCheck() string {
+	for _, c := range s.checkItems {
+		if c.spinning() {
+			return c.name
+		}
+	}
+	return ""
 }

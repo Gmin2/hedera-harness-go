@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -30,10 +31,10 @@ func (m *Model) landingView(width, height int) string {
 	info := []string{
 		sty.Muted.Render(ansi.Truncate(prettyPath(m.opts.Cwd), width, "…")),
 		"",
-		m.networkLine(m.network, width),
+		m.projectNetworkLine(m.network, width),
 		"  " + sty.Subtle.Render(fmt.Sprintf("%d scenarios %s %s", len(m.opts.Scenarios), styles.Dot, networkBlurb(m.network))),
 	}
-	if m.opts.Agent != nil || len(m.judges) > 0 {
+	if m.opts.Agent != nil || len(m.judges) > 0 || len(m.checks) > 0 {
 		info = append(info, m.agentLine(width))
 	}
 
@@ -49,16 +50,80 @@ func (m *Model) landingView(width, height int) string {
 	return lipgloss.NewStyle().PaddingTop(1).MaxHeight(height).Render(body)
 }
 
-// agentLine renders "◇ claude  judges token-flow, topic-submit".
+// projectNetworkLine is the network line with the loaded hh.yaml after it.
+func (m *Model) projectNetworkLine(network string, width int) string {
+	line := m.networkLine(network, width)
+	if p := m.projectLabel(); p != "" {
+		line += "  " + m.sty.Muted.Render(p)
+	}
+	return ansi.Truncate(line, width, "…")
+}
+
+// projectLabel is the hh.yaml path relative to the working directory when it
+// sits under it, otherwise its file name.
+func (m *Model) projectLabel() string {
+	p := m.opts.Project
+	if p == "" {
+		return ""
+	}
+	if !filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	if rel, err := filepath.Rel(m.opts.Cwd, p); err == nil && m.opts.Cwd != "" && !strings.HasPrefix(rel, "..") {
+		return rel
+	}
+	return filepath.Base(p)
+}
+
+// agentLine renders "◇ claude  judges token-flow, topic-submit  checks go
+// build ./...". When it does not fit, each list gets an even share of the
+// room and a short list gives what it does not use to the other.
 func (m *Model) agentLine(width int) string {
 	sty := m.sty
 	line := sty.Subtle.Render(styles.IconInfo) + " " + sty.Base.Render(m.opts.AgentName) + "  "
-	if len(m.judges) == 0 {
+	if len(m.judges) == 0 && len(m.checks) == 0 {
 		line += sty.Subtle.Render("no judges, add one with judge <scenario>")
-	} else {
-		line += sty.Subtle.Render("judges ") + sty.Muted.Render(strings.Join(m.judgeNames(), ", "))
+		return ansi.Truncate(line, width, "…")
+	}
+
+	type list struct{ label, text string }
+	var lists []list
+	if len(m.judges) > 0 {
+		lists = append(lists, list{"judges ", strings.Join(m.judgeNames(), ", ")})
+	}
+	if len(m.checks) > 0 {
+		lists = append(lists, list{"checks ", strings.Join(m.checkNames(), ", ")})
+	}
+	want := make([]int, len(lists))
+	for i, l := range lists {
+		want[i] = lipgloss.Width(l.label) + lipgloss.Width(l.text)
+	}
+	room := width - lipgloss.Width(line) - 2*(len(lists)-1)
+	for i, w := range share(room, want) {
+		l := lists[i]
+		if i > 0 {
+			line += "  "
+		}
+		line += sty.Subtle.Render(l.label) + sty.Muted.Render(ansi.Truncate(l.text, max(0, w-lipgloss.Width(l.label)), "…"))
 	}
 	return ansi.Truncate(line, width, "…")
+}
+
+// share splits room between wants, smallest first, so nobody gets more
+// than they asked for and the leftover goes to the rest.
+func share(room int, want []int) []int {
+	order := make([]int, len(want))
+	for i := range order {
+		order[i] = i
+	}
+	slices.SortStableFunc(order, func(a, b int) int { return want[a] - want[b] })
+	got := make([]int, len(want))
+	left := max(0, room)
+	for n, i := range order {
+		got[i] = min(want[i], left/(len(want)-n))
+		left -= got[i]
+	}
+	return got
 }
 
 func (m *Model) scenarioColumn(width, rows int) string {
@@ -158,6 +223,9 @@ func (m *Model) sidebarView(width, height int) string {
 	if len(m.judges) > 0 {
 		blocks = append(blocks, "", m.judgesSection(m.selectedJudges(), w))
 	}
+	if len(m.checks) > 0 {
+		blocks = append(blocks, "", m.checksSection(m.selectedChecks(), w))
+	}
 	return lipgloss.NewStyle().MaxWidth(width).MaxHeight(height).Render(strings.Join(blocks, "\n"))
 }
 
@@ -177,6 +245,9 @@ func (m *Model) sessionSidebar(width, height int) string {
 		m.agentSection(w),
 		"",
 		m.judgesSection(s.Judges(), w),
+	}
+	if checks := s.Checks(); len(checks) > 0 {
+		blocks = append(blocks, "", m.checksSection(checks, w))
 	}
 	if r := s.Current(); r != nil {
 		blocks = append(blocks, "", m.progressSection(r, w), "", m.assertionsSection(r, w))
@@ -210,6 +281,14 @@ func (m *Model) selectedJudges() []run.Judge {
 		judges[i] = run.Judge{Name: m.scenarioName(path), Path: path}
 	}
 	return judges
+}
+
+func (m *Model) selectedChecks() []run.Check {
+	checks := make([]run.Check, len(m.checks))
+	for i, c := range m.checks {
+		checks[i] = run.Check{Name: c.Name, Command: c.Run}
+	}
+	return checks
 }
 
 func (m *Model) agentSection(width int) string {
@@ -270,6 +349,20 @@ func (m *Model) judgesSection(judges []run.Judge, width int) string {
 	for _, j := range judges {
 		icon := sty.Icon(j.Status == event.Passed, j.Status == event.Failed, j.Status == event.Running)
 		row := icon + " " + sty.Base.Foreground(styles.FgSubtle).Render(j.Name)
+		lines = append(lines, ansi.Truncate(row, width, "…"))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (m *Model) checksSection(checks []run.Check, width int) string {
+	sty := m.sty
+	lines := []string{sty.Rule("Checks", width)}
+	if len(checks) == 0 {
+		return strings.Join(append(lines, sty.Subtle.Render("None")), "\n")
+	}
+	for _, c := range checks {
+		icon := sty.Icon(c.Status == event.Passed, c.Status == event.Failed, c.Status == event.Running)
+		row := icon + " " + sty.Base.Foreground(styles.FgSubtle).Render(ansi.Truncate(c.Name, max(0, width-2), "…"))
 		lines = append(lines, ansi.Truncate(row, width, "…"))
 	}
 	return strings.Join(lines, "\n")
@@ -367,6 +460,9 @@ func (m *Model) compactHeader(width int) string {
 		if n := len(s.Judges()); n > 0 {
 			parts = append(parts, sty.Header.Detail.Render(plural(n, "judge")))
 		}
+		if n := len(s.Checks()); n > 0 {
+			parts = append(parts, sty.Header.Detail.Render(plural(n, "check")))
+		}
 	} else {
 		r := m.run
 		parts = append(parts, sty.Header.Detail.Render(r.Name()), sty.Header.Detail.Render(r.Network),
@@ -435,7 +531,7 @@ func (m *Model) sessionProgressText() string {
 		text += " " + a
 	}
 	text += " " + s.Stage()
-	if r := s.Current(); r != nil && s.Stage() == "judging" {
+	if r := s.Current(); r != nil && s.Stage() == "judging" && s.RunningCheck() == "" {
 		text += " " + progressText(r)
 	}
 	return text
@@ -454,7 +550,7 @@ func (m *Model) detailsView(width, height int) string {
 			m.promptTitle(inner, 1),
 			sty.Sidebar.Info.Render(ansi.Truncate(m.agentRef(), inner, "…")),
 			"",
-			m.networkLine(s.Network, inner),
+			m.projectNetworkLine(s.Network, inner),
 			"",
 		}
 	} else {
@@ -463,7 +559,7 @@ func (m *Model) detailsView(width, height int) string {
 			sty.Sidebar.Title.Render(ansi.Truncate(r.Name(), inner, "…")) + " " +
 				sty.Sidebar.Info.Render(ansi.Truncate(runRef(r.Info.RunID, r.Path), max(0, inner-lipgloss.Width(r.Name())-1), "…")),
 			"",
-			m.networkLine(r.Network, inner),
+			m.projectNetworkLine(r.Network, inner),
 			"",
 		}
 	}
@@ -475,7 +571,11 @@ func (m *Model) detailsView(width, height int) string {
 		if r := s.Current(); r != nil {
 			progress = m.progressSection(r, colW)
 		}
-		columns = []string{m.agentSection(colW), m.judgesSection(s.Judges(), colW), progress}
+		judges := m.judgesSection(s.Judges(), colW)
+		if checks := s.Checks(); len(checks) > 0 {
+			judges += "\n\n" + m.checksSection(checks, colW)
+		}
+		columns = []string{m.agentSection(colW), judges, progress}
 	} else {
 		r := m.run
 		columns = []string{m.actorsSection(r, colW, rows-1), m.progressSection(r, colW), m.assertionsSection(r, colW)}

@@ -20,9 +20,12 @@ type Runner interface {
 }
 
 type Options struct {
-	Prompt      string
-	Dir         string
-	Judges      []string // scenario files, relative to Dir or absolute
+	Prompt string
+	Dir    string
+	Judges []string // scenario files, relative to Dir or absolute
+	Checks []Check  // shell commands that must exit 0, run before the scenarios
+	// Env is added to the environment of checks, eg the connected wallet.
+	Env         []string
 	Network     network.Mode
 	MaxAttempts int
 	Model       string
@@ -60,7 +63,7 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 	}
 	start := time.Now()
 	total := 0.0
-	system := SystemPrompt(o.HH, o.Judges, string(o.Network))
+	system := SystemPrompt(o.HH, o.Judges, o.Checks, string(o.Network))
 	prompt, session := o.Prompt, o.SessionID
 
 	finish := func(status event.Status, attempts int, err error) error {
@@ -133,7 +136,7 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 			return finish(event.Failed, attempt, err)
 		}
 
-		if len(o.Judges) == 0 {
+		if len(o.Judges) == 0 && len(o.Checks) == 0 {
 			return finish(event.Passed, attempt, nil)
 		}
 		findings := judge(ctx, o, attempt, sink)
@@ -143,16 +146,29 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 		if len(findings) == 0 {
 			return finish(event.Passed, attempt, nil)
 		}
-		prompt = RepairPrompt(findings, o.Judges, o.HH, string(o.Network))
+		prompt = RepairPrompt(findings, o.Judges, o.Checks, o.HH, string(o.Network))
 	}
 	return finish(event.Failed, o.MaxAttempts, fmt.Errorf("judge still failing after %d attempts", o.MaxAttempts))
 }
 
-// judge runs every judge scenario and returns what went wrong, one finding
-// per line, in a form the agent can act on.
+// judge runs the checks, then every judge scenario, and returns what went
+// wrong in a form the agent can act on. Checks go first: they are usually a
+// build, and scenarios mean little when the code does not compile.
 func judge(ctx context.Context, o Options, attempt int, sink event.Sink) []string {
 	var findings []string
 	passed, failed := 0, 0
+	for _, c := range o.Checks {
+		if ctx.Err() != nil {
+			break
+		}
+		fin := runCheck(ctx, o.Dir, c, attempt, o.Env, sink)
+		if fin.Status == event.Passed {
+			passed++
+		} else {
+			failed++
+			findings = append(findings, checkFinding(fin))
+		}
+	}
 	for _, path := range o.Judges {
 		fs := judgeOne(ctx, o, path, sink)
 		if len(fs) == 0 {

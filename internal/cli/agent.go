@@ -23,6 +23,7 @@ import (
 func agentCmd() *cobra.Command {
 	var (
 		judges      []string
+		checks      []string
 		dir         string
 		model       string
 		maxAttempts int
@@ -61,6 +62,33 @@ run out. Uses your existing claude code login.`,
 				return err
 			}
 
+			// hh.yaml fills whatever the flags leave out
+			loopChecks := projectChecks()
+			if len(checks) > 0 {
+				loopChecks = nil
+				for _, c := range checks {
+					loopChecks = append(loopChecks, agent.Check{Run: c})
+				}
+			}
+			if proj != nil {
+				flags := cmd.Flags()
+				if !flags.Changed("judge") {
+					judges = proj.Judge.Scenarios
+				}
+				if !flags.Changed("model") && proj.Agent.Model != "" {
+					model = proj.Agent.Model
+				}
+				if !flags.Changed("max-cost") && proj.Agent.MaxCost > 0 {
+					maxCost = proj.Agent.MaxCost
+				}
+				if !flags.Changed("max-attempts") && proj.Agent.MaxAttempts > 0 {
+					maxAttempts = proj.Agent.MaxAttempts
+				}
+				if !flags.Changed("timeout") && proj.Agent.Timeout.Duration > 0 {
+					timeout = proj.Agent.Timeout.Duration
+				}
+			}
+
 			var sink event.Sink
 			if asJSON {
 				sink = jsonLines(cmd.OutOrStdout())
@@ -76,6 +104,7 @@ run out. Uses your existing claude code login.`,
 				Prompt:         prompt,
 				Dir:            absDir,
 				Judges:         judges,
+				Checks:         loopChecks,
 				Network:        mode,
 				MaxAttempts:    maxAttempts,
 				Model:          model,
@@ -94,7 +123,8 @@ run out. Uses your existing claude code login.`,
 			return nil
 		},
 	}
-	cmd.Flags().StringArrayVarP(&judges, "judge", "j", nil, "scenario that must pass, repeatable")
+	cmd.Flags().StringArrayVarP(&judges, "judge", "j", nil, "scenario that must pass, repeatable (default from hh.yaml)")
+	cmd.Flags().StringArrayVar(&checks, "check", nil, "shell command that must exit 0, repeatable (default from hh.yaml)")
 	cmd.Flags().StringVar(&dir, "dir", ".", "directory the agent works in")
 	cmd.Flags().StringVarP(&model, "model", "m", "", "claude model, eg sonnet or opus (default: your claude code default)")
 	cmd.Flags().IntVar(&maxAttempts, "max-attempts", 3, "agent attempts including repairs")

@@ -23,9 +23,16 @@ const SessionID = "demo-session-7f3a2c"
 // cannot import the tui back.
 type Request struct {
 	Prompt    string
-	Judges    []string
 	Network   string
 	SessionID string
+	Judges    []string
+	Checks    []Check
+}
+
+// Check mirrors tui.Check.
+type Check struct {
+	Name string
+	Run  string
 }
 
 // turns counts prompts in the current demo conversation, like the real agent
@@ -46,8 +53,9 @@ func nextTurn(sessionID string) int {
 }
 
 // Agent plays a scripted turn of a conversation into sink. On the first
-// prompt with judges, attempt one leaves the scheduled payout unsigned, the
-// judge catches it and attempt two fixes it. Follow up prompts continue the
+// prompt with judges or checks, attempt one leaves the scheduled payout
+// unsigned, the first check (or the first scenario when there are no checks)
+// catches it and attempt two fixes it. Follow up prompts continue the
 // same session.
 func Agent(ctx context.Context, req Request, sink event.Sink) error {
 	for _, b := range AgentScript(req, nextTurn(req.SessionID)) {
@@ -75,7 +83,8 @@ func AgentEvents(req Request, turn int) []event.Event {
 // conversation, starting at 1. Text is streamed as deltas before each
 // complete block.
 func AgentScript(req Request, turn int) []Beat {
-	judges, network := req.Judges, req.Network
+	judges, checks, network := req.Judges, req.Checks, req.Network
+	judged := len(judges) > 0 || len(checks) > 0
 
 	var beats []Beat
 	add := func(d time.Duration, ev event.Event) {
@@ -108,8 +117,30 @@ func AgentScript(req Request, turn int) []Beat {
 	judge := func(attempt int, broken bool) {
 		passed, failed := 0, 0
 		var findings []string
+		for i, c := range checks {
+			name := c.Name
+			if name == "" {
+				name = c.Run
+			}
+			add(300*time.Millisecond, event.CheckStarted{Attempt: attempt, Name: name, Command: c.Run})
+			fin := event.CheckFinished{Attempt: attempt, Name: name, Command: c.Run, Status: event.Passed, Elapsed: 3200 * time.Millisecond}
+			switch {
+			case broken && i == 0:
+				fin.Status, fin.ExitCode, fin.Output = event.Failed, 1, goTestFailed
+				failed++
+				findings = append(findings, fmt.Sprintf("check %q (`%s`) failed: exited 1\n  output:\n    %s",
+					name, c.Run, strings.ReplaceAll(goTestFailed, "\n", "\n    ")))
+			case i == 0:
+				fin.Output = goTestPassed
+				passed++
+			default:
+				fin.Elapsed = 1400 * time.Millisecond
+				passed++
+			}
+			add(fin.Elapsed/2, fin)
+		}
 		for i, path := range judges {
-			bad := broken && i == 0
+			bad := broken && i == 0 && len(checks) == 0
 			// judge runs play at double speed, the demo is about the loop
 			for _, b := range script(path, network, runID(attempt, i), bad) {
 				add(b.Delay/2, b.Event)
@@ -147,7 +178,7 @@ func AgentScript(req Request, turn int) []Beat {
 		tool(1, fmt.Sprintf("toolu_%d1", turn), "Read", "internal/payout/payout.go", payoutGo, 400*time.Millisecond)
 		say(1, 900*time.Millisecond, "Nothing from the earlier turn needs redoing. The change is small and sits next to the scheduled payout.")
 		finish(1, 3, 0.02, 9*time.Second)
-		if len(judges) == 0 {
+		if !judged {
 			done(1, 0.02, 9*time.Second)
 			return beats
 		}
@@ -165,7 +196,7 @@ func AgentScript(req Request, turn int) []Beat {
 	tool(1, "toolu_03", "Bash", "go test ./internal/payout/...", "ok  \tgithub.com/acme/treasury/internal/payout\t0.412s", 1800*time.Millisecond)
 	say(1, 900*time.Millisecond, "The payout helper is in place and its unit tests pass.")
 	finish(1, 7, 0.12, 41*time.Second)
-	if len(judges) == 0 {
+	if !judged {
 		done(1, 0.12, 41*time.Second)
 		return beats
 	}
@@ -187,6 +218,19 @@ func AgentScript(req Request, turn int) []Beat {
 func runID(attempt, judge int) string {
 	return fmt.Sprintf("8b%d%d1e", attempt, judge)
 }
+
+const goTestFailed = `ok  	github.com/acme/treasury/internal/config	0.105s
+ok  	github.com/acme/treasury/internal/payout	0.412s
+--- FAIL: TestPayoutExecutes (1.20s)
+    treasury_test.go:52: schedule 0.0.1042 created
+    treasury_test.go:58: schedule never executed: INVALID_SIGNATURE, bob did not sign
+FAIL
+FAIL	github.com/acme/treasury/internal/treasury	1.214s
+FAIL`
+
+const goTestPassed = `ok  	github.com/acme/treasury/internal/config	0.105s
+ok  	github.com/acme/treasury/internal/payout	0.431s
+ok  	github.com/acme/treasury/internal/treasury	1.502s`
 
 const payoutGo = `package payout
 

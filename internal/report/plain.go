@@ -141,6 +141,26 @@ func (p *Plain) Sink(e event.Event) {
 	case event.AgentFinished:
 		p.endLive()
 		p.agentFinished(e)
+	case event.CheckFinished:
+		p.endLive()
+		icon := sOK.String()
+		if e.Status != event.Passed {
+			icon = sFail.String()
+		}
+		info := fmt.Sprintf("exit %d · %s", e.ExitCode, short(e.Elapsed))
+		if e.Error != "" {
+			info = e.Error
+		}
+		p.println(truncate(fmt.Sprintf("   %s %s %s %s", icon, sName.Render("check"), sBase.Render(e.Command), sSubtle.Render(info)), p.width))
+		if e.Status != event.Passed && strings.TrimSpace(e.Output) != "" {
+			lines := strings.Split(e.Output, "\n")
+			if len(lines) > 8 {
+				lines = lines[len(lines)-8:]
+			}
+			for _, l := range lines {
+				p.println(truncate("     "+sSubtle.Render(l), p.width))
+			}
+		}
 	case event.JudgeFinished:
 		p.judgeFinished(e)
 	case event.LoopFinished:
@@ -208,10 +228,10 @@ func (p *Plain) judgeFinished(e event.JudgeFinished) {
 	p.println("")
 	total := e.Passed + e.Failed
 	if e.Status == event.Passed {
-		p.println(fmt.Sprintf(" %s %s", sPass.String(), sBase.Render(fmt.Sprintf("judge passed %d/%d scenarios", e.Passed, total))))
+		p.println(fmt.Sprintf(" %s %s", sPass.String(), sBase.Render(fmt.Sprintf("judge passed %d/%d", e.Passed, total))))
 		return
 	}
-	p.println(fmt.Sprintf(" %s %s", sFailTag.String(), sBase.Render(fmt.Sprintf("judge failed %d/%d scenarios, sending the findings back", e.Failed, total))))
+	p.println(fmt.Sprintf(" %s %s", sFailTag.String(), sBase.Render(fmt.Sprintf("judge failed %d/%d, sending the findings back", e.Failed, total))))
 	for _, f := range e.Findings {
 		p.println(truncate("     "+sMuted.Render("- "+f), p.width))
 	}
