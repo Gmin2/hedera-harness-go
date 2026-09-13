@@ -80,6 +80,7 @@ type Styles struct {
 	}
 
 	Editor struct {
+		Background    color.Color
 		PromptFocused lipgloss.Style
 		PromptBlurred lipgloss.Style
 		Text          lipgloss.Style
@@ -197,6 +198,7 @@ func Default() *Styles {
 	r.FooterText = muted
 	r.FooterFailed = lipgloss.NewStyle().Foreground(Destructive)
 
+	s.Editor.Background = BgLeastVisible
 	s.Editor.PromptFocused = lipgloss.NewStyle().Foreground(SuccessMostSubtle)
 	s.Editor.PromptBlurred = muted
 	s.Editor.Text = base

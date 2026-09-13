@@ -1,31 +1,31 @@
 
-                                                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
    Steps ─────────────────────────────────────────────────────────────────────────────  ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
-                                                                                        █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
-   ✓ token.create gold (supply=1000, decimals=2, treasury=alice) 900ms                  █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
-                                                                                        ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
-    status    SUCCESS                                                                   harness                v0.1.0
-    tx        0.0.4512@1757712000.000000104                                             ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
-    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000104           
-    gold      0.0.1004                                                                  token-flow
-                                                                                        run 7f3a2c · scenarios/token…
-   ✓ token.associate bob (token=gold) 450ms
-                                                                                        ◇  testnet  operator 0.0.4512
-    status    SUCCESS                                                                 
-    tx        0.0.4512@1757712000.000000105                                             Actors ──────────────────────
-    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000105             ✓ alice 0.0.1001
-                                                                                        ✓ bob   0.0.1002
-   ✓ token.transfer gold (from=alice, to=bob, amount=250) 520ms                         ✓ carol 0.0.1003
+                                                                                        ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+   ✓ token.create gold (supply=1000, decimals=2, treasury=alice) 900ms                  █  █ █▀▀▀ █▀▀▄ █▀▀▀ █▀▀▄ ▄▀▀▄
+                                                                                        █▀▀█ █▀▀  █  █ █▀▀  █▀▀▄ █▀▀█
+    status    SUCCESS                                                                   ▀  ▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀ ▀  ▀ ▀  ▀
+    tx        0.0.4512@1757712000.000000104                                             harness                v0.1.0
+    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000104             ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱
+    gold      0.0.1004                                                                
+                                                                                        token-flow
+   ✓ token.associate bob (token=gold) 450ms                                             run 7f3a2c · scenarios/token…
 
-    status    SUCCESS                                                                   Progress ────────────────────
-    tx        0.0.4512@1757712000.000000106                                             ✓ actors                  3/3
-    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000106             ● steps                   3/8
-                                                                                        ○ assertions              0/6
-   ● token.transfer gold (from=alice, to=carol, amount=10) ^0D3=c5$^774&#e Submitting
+    status    SUCCESS                                                                   ◇  testnet  operator 0.0.4512
+    tx        0.0.4512@1757712000.000000105                                           
+    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000105             Actors ──────────────────────
+                                                                                        ✓ alice 0.0.1001
+   ✓ token.transfer gold (from=alice, to=bob, amount=250) 520ms                         ✓ bob   0.0.1002
+                                                                                        ✓ carol 0.0.1003
+    status    SUCCESS                                                                 
+    tx        0.0.4512@1757712000.000000106                                             Progress ────────────────────
+    hashscan  hashscan.io/testnet/transaction/0.0.4512@1757712000.000000106             ✓ actors                  3/3
+                                                                                        ● steps                   3/8
+   ● token.transfer gold (from=alice, to=carol, amount=10) ^0D3=c5$^774&#e Submitting   ○ assertions              0/6
+
                                                                                         Assertions ──────────────────
                                                                                         ✓ 0  × 0  ○ 6
-   > Running token-flow... esc to cancel                                               
- :::  
- :::  
-
+    > Running token-flow... esc to cancel                                              
+  :::                                                                                  
+  :::                                                                                  
+                                                                                       
  esc cancel run • tab focus run • ctrl+r scenarios • ctrl+p commands • ctrl+c quit • ctrl+g more
