@@ -1,5 +1,7 @@
 # hh, a hedera harness in go
 
+[![ci](https://github.com/Gmin2/hedera-harness-go/actions/workflows/ci.yml/badge.svg)](https://github.com/Gmin2/hedera-harness-go/actions/workflows/ci.yml)
+
 hh runs YAML scenarios against Hedera and proves the result on the mirror node.
 It ships with a mock Hedera network that runs in process, so a full token,
 topic or schedule flow runs in milliseconds with no docker, no portal account
