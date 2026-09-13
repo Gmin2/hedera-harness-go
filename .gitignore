@@ -3,3 +3,4 @@ tmp/
 /dist/
 .env
 *.out
+/hedera-harness-go
