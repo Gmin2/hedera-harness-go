@@ -222,25 +222,43 @@ func (m *Model) agentSection(width int) string {
 	failed := res != nil && res.Status != event.Passed && !s.Canceled()
 	icon := sty.Icon(passed, failed, !s.Done())
 
-	label := "starting"
-	if s.Attempt() > 0 {
-		label = fmt.Sprintf("attempt %d", s.Attempt())
-	}
-	stage := s.Stage()
-	if s.Canceled() {
-		stage = "canceled"
-	} else if res != nil {
-		stage = string(res.Status)
-	}
-	if stage == label {
-		stage = ""
-	}
+	label := fmt.Sprintf("turn %d", s.Turn())
+	stage := m.turnStage()
 	pad := max(0, width-2-lipgloss.Width(label)-lipgloss.Width(stage)-1)
 	lines = append(lines, icon+" "+sty.Base.Foreground(styles.FgSubtle).Render(label+strings.Repeat(" ", pad))+" "+sty.Muted.Render(stage))
 
-	usage := fmt.Sprintf("%d turns %s $%.2f", s.Turns(), styles.Dot, s.Cost())
+	if a := attemptText(s); a != "" {
+		lines = append(lines, "  "+sty.Muted.Render(ansi.Truncate(a+" "+styles.Dot+" repair", max(0, width-2), "…")))
+	}
+	usage := fmt.Sprintf("$%.2f this conversation", s.Cost())
 	lines = append(lines, "  "+sty.Subtle.Render(ansi.Truncate(usage, max(0, width-2), "…")))
 	return strings.Join(lines, "\n")
+}
+
+// turnStage is what the current turn is doing, or how it ended.
+func (m *Model) turnStage() string {
+	s := m.session
+	res := s.Result()
+	switch {
+	case s.Canceled():
+		return "canceled"
+	case res == nil:
+		return s.Stage()
+	case res.Status == event.Passed && !s.Judged():
+		return "done"
+	}
+	return string(res.Status)
+}
+
+// attemptText is "attempt 2/3" while the turn is past its first attempt.
+func attemptText(s *run.Session) string {
+	switch {
+	case s.Attempt() < 2:
+		return ""
+	case s.MaxAttempts() > 0:
+		return fmt.Sprintf("attempt %d/%d", s.Attempt(), s.MaxAttempts())
+	}
+	return fmt.Sprintf("attempt %d", s.Attempt())
 }
 
 func (m *Model) judgesSection(judges []run.Judge, width int) string {
@@ -395,23 +413,28 @@ func progressText(r *run.Run) string {
 	return r.Stage()
 }
 
-// sessionProgressText is "attempt 2 working", "attempt 1 judging steps 3/8"
-// or the loop outcome.
+// sessionProgressText is "turn 2 working", "turn 1 attempt 2/3 judging
+// steps 3/8" or how the turn ended.
 func (m *Model) sessionProgressText() string {
 	s := m.session
+	text := fmt.Sprintf("turn %d", s.Turn())
 	if res := s.Result(); res != nil {
 		switch {
 		case s.Canceled():
-			return "canceled"
+			return text + " canceled"
+		case res.Status == event.Passed && !s.Judged():
+			return text + " done"
 		case res.Status == event.Passed:
-			return "passed in " + plural(res.Attempts, "attempt")
+			return text + " passed in " + plural(res.Attempts, "attempt")
+		case res.Attempts > 0:
+			return text + " failed after " + plural(res.Attempts, "attempt")
 		}
-		return "failed after " + plural(res.Attempts, "attempt")
+		return text + " failed"
 	}
-	if s.Attempt() == 0 {
-		return "starting"
+	if a := attemptText(s); a != "" {
+		text += " " + a
 	}
-	text := fmt.Sprintf("attempt %d %s", s.Attempt(), s.Stage())
+	text += " " + s.Stage()
 	if r := s.Current(); r != nil && s.Stage() == "judging" {
 		text += " " + progressText(r)
 	}

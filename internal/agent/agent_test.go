@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Gmin2/hedera-harness-go/internal/event"
 	"github.com/Gmin2/hedera-harness-go/internal/network"
@@ -65,7 +66,12 @@ func TestStreamParserErrorResult(t *testing.T) {
 func TestClaudeArgs(t *testing.T) {
 	args := Claude{}.args(Request{Prompt: "fix it", Model: "sonnet", SessionID: "s-9", SystemPrompt: "sys"})
 	joined := strings.Join(args, " ")
-	for _, want := range []string{"-p fix it", "--output-format stream-json", "--verbose", "--resume s-9", "--model sonnet", "--append-system-prompt sys", "--allowedTools Bash,Read,Edit,Write,Glob,Grep"} {
+	if strings.Contains(joined, "--include-partial-messages") || strings.Contains(joined, "--max-budget-usd") {
+		t.Fatalf("streaming and budget flags should be opt in: %s", joined)
+	}
+	args = append(args, Claude{}.args(Request{Stream: true, MaxBudgetUSD: 0.5})...)
+	joined = strings.Join(args, " ")
+	for _, want := range []string{"-p fix it", "--output-format stream-json", "--verbose", "--resume s-9", "--model sonnet", "--append-system-prompt sys", "--allowedTools Bash,Read,Edit,Write,Glob,Grep", "--include-partial-messages", "--max-budget-usd 0.50"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("args missing %q: %s", want, joined)
 		}
@@ -168,5 +174,107 @@ func TestSystemPromptListsEveryOp(t *testing.T) {
 		if !strings.Contains(p, want) {
 			t.Errorf("system prompt missing %q", want)
 		}
+	}
+}
+
+func TestStreamParserDeltasAndRateLimit(t *testing.T) {
+	stream := `{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Hel"}}}
+{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"lo"}}}
+{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":""}}}
+{"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1789271400}}
+{"type":"rate_limit_event","rate_limit_info":{"status":"rejected","resetsAt":1789271400}}
+{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}
+`
+	var events []event.Event
+	p := &streamParser{attempt: 1, sink: func(e event.Event) { events = append(events, e) }, tools: map[string]string{}}
+	if err := p.read(strings.NewReader(stream)); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 4 {
+		t.Fatalf("want 2 deltas, 1 warning, 1 text, got %#v", events)
+	}
+	if d := events[0].(event.AgentTextDelta); d.Text != "Hel" {
+		t.Fatalf("delta: %#v", d)
+	}
+	if l, ok := events[2].(event.Log); !ok || l.Level != "warn" || !strings.Contains(l.Msg, "rate limited") {
+		t.Fatalf("rate limit: %#v", events[2])
+	}
+	if txt := events[3].(event.AgentText); txt.Text != "Hello" {
+		t.Fatalf("final text: %#v", txt)
+	}
+}
+
+// chatAgent answers without touching files, reporting a fixed session and cost.
+type chatAgent struct {
+	sessions []string
+	cost     float64
+	block    bool
+}
+
+func (c *chatAgent) Run(ctx context.Context, req Request, attempt int, sink event.Sink) (Result, error) {
+	c.sessions = append(c.sessions, req.SessionID)
+	if c.block {
+		<-ctx.Done()
+		return Result{SessionID: "chat-1"}, ctx.Err()
+	}
+	sink(event.AgentText{Attempt: attempt, Text: "hi"})
+	return Result{SessionID: "chat-1", CostUSD: c.cost}, nil
+}
+
+func TestLoopContinuesConversation(t *testing.T) {
+	a := &chatAgent{cost: 0.01}
+	var first, second event.LoopFinished
+	var started event.AgentStarted
+	_ = Loop(context.Background(), Options{Prompt: "hello", Agent: a}, func(e event.Event) {
+		if lf, ok := e.(event.LoopFinished); ok {
+			first = lf
+		}
+	})
+	_ = Loop(context.Background(), Options{Prompt: "and again", Agent: a, SessionID: first.SessionID, Turn: 2}, func(e event.Event) {
+		switch e := e.(type) {
+		case event.LoopFinished:
+			second = e
+		case event.AgentStarted:
+			started = e
+		}
+	})
+	if first.SessionID != "chat-1" || second.SessionID != "chat-1" {
+		t.Fatalf("session ids: %q %q", first.SessionID, second.SessionID)
+	}
+	if a.sessions[0] != "" || a.sessions[1] != "chat-1" {
+		t.Fatalf("second prompt should resume, got %v", a.sessions)
+	}
+	if started.Turn != 2 || started.MaxAttempts != 3 {
+		t.Fatalf("started: %+v", started)
+	}
+}
+
+func TestLoopStopsAtBudget(t *testing.T) {
+	dir := t.TempDir()
+	agent := &fakeAgent{dir: dir, writes: []string{"name: still broken\n"}}
+	var last event.LoopFinished
+	err := Loop(context.Background(), Options{
+		Prompt: "x", Dir: dir, Judges: []string{"transfer.yaml"}, Network: network.Mock,
+		MaxAttempts: 5, MaxCostUSD: 0.025, Agent: agent, Open: target.Open,
+	}, func(e event.Event) {
+		if lf, ok := e.(event.LoopFinished); ok {
+			last = lf
+		}
+	})
+	if err == nil || !strings.Contains(err.Error(), "budget") || len(agent.prompts) != 2 {
+		t.Fatalf("err %v after %d attempts, last %+v", err, len(agent.prompts), last)
+	}
+}
+
+func TestLoopAttemptTimeout(t *testing.T) {
+	a := &chatAgent{block: true}
+	var fin event.AgentFinished
+	err := Loop(context.Background(), Options{Prompt: "slow", Agent: a, AttemptTimeout: 50 * time.Millisecond}, func(e event.Event) {
+		if f, ok := e.(event.AgentFinished); ok {
+			fin = f
+		}
+	})
+	if err == nil || !strings.Contains(err.Error(), "longer than") || fin.Status != event.Failed || fin.SessionID != "chat-1" {
+		t.Fatalf("err %v fin %+v", err, fin)
 	}
 }

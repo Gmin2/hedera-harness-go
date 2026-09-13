@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
@@ -27,6 +28,9 @@ func agentCmd() *cobra.Command {
 		maxAttempts int
 		asJSON      bool
 		claudeBin   string
+		resume      string
+		maxCost     float64
+		timeout     time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:   "agent <prompt>",
@@ -37,7 +41,8 @@ the same claude session as a repair prompt, until the judge passes or attempts
 run out. Uses your existing claude code login.`,
 		Example: `  hh agent "write examples/stablecoin.yaml: a token with kyc and a 1% fractional fee" --judge examples/stablecoin.yaml
   hh agent "fix the airdrop scenario" --judge examples/03-airdrop.yaml --max-attempts 2
-  echo "add a scheduled payout scenario" | hh agent --judge payout.yaml`,
+  echo "add a scheduled payout scenario" | hh agent --judge payout.yaml
+  hh agent --resume 53803b19-... "now add a pause step"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			prompt := strings.TrimSpace(strings.Join(args, " "))
 			if prompt == "" && !term.IsTerminal(os.Stdin.Fd()) {
@@ -68,15 +73,19 @@ run out. Uses your existing claude code login.`,
 			}
 
 			err = agent.Loop(cmd.Context(), agent.Options{
-				Prompt:      prompt,
-				Dir:         absDir,
-				Judges:      judges,
-				Network:     mode,
-				MaxAttempts: maxAttempts,
-				Model:       model,
-				HH:          hhPath(),
-				Agent:       agent.Claude{Command: claudeBin},
-				Open:        target.Open,
+				Prompt:         prompt,
+				Dir:            absDir,
+				Judges:         judges,
+				Network:        mode,
+				MaxAttempts:    maxAttempts,
+				Model:          model,
+				HH:             hhPath(),
+				Agent:          agent.Claude{Command: claudeBin},
+				Open:           target.Open,
+				SessionID:      resume,
+				MaxCostUSD:     maxCost,
+				AttemptTimeout: timeout,
+				Stream:         !asJSON,
 			}, sink)
 			if err != nil {
 				cmd.SilenceErrors = true
@@ -91,6 +100,9 @@ run out. Uses your existing claude code login.`,
 	cmd.Flags().IntVar(&maxAttempts, "max-attempts", 3, "agent attempts including repairs")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print events as json lines")
 	cmd.Flags().StringVar(&claudeBin, "claude", "claude", "path to the claude cli")
+	cmd.Flags().StringVar(&resume, "resume", "", "continue an earlier conversation by session id")
+	cmd.Flags().Float64Var(&maxCost, "max-cost", 0, "stop once the attempts cost this many usd (0 = no cap)")
+	cmd.Flags().DurationVar(&timeout, "timeout", 20*time.Minute, "longest one agent attempt may run")
 	return cmd
 }
 

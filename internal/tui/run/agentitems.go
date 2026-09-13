@@ -83,10 +83,13 @@ func (p *promptItem) Render(width int) string {
 	return p.sty.Run.Prompt.Render(text)
 }
 
-// textItem is what the agent said, as wrapped plain text.
+// textItem is what the agent said, as wrapped plain text. While live it
+// grows with every delta and is wrapped again on each render.
 type textItem struct {
-	sty  *styles.Styles
-	text string
+	sty     *styles.Styles
+	text    string
+	attempt int
+	live    bool
 }
 
 func (t *textItem) Render(width int) string {

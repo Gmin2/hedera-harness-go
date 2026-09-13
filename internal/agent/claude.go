@@ -28,6 +28,10 @@ type Request struct {
 	SessionID    string // resume this session when set
 	SystemPrompt string
 	MaxTurns     int
+	// Stream asks for text as it is written, not only complete blocks.
+	Stream bool
+	// MaxBudgetUSD makes claude itself stop spending past this amount.
+	MaxBudgetUSD float64
 }
 
 type Result struct {
@@ -76,6 +80,12 @@ func (c Claude) args(req Request) []string {
 	if req.MaxTurns > 0 {
 		args = append(args, "--max-turns", fmt.Sprint(req.MaxTurns))
 	}
+	if req.Stream {
+		args = append(args, "--include-partial-messages")
+	}
+	if req.MaxBudgetUSD > 0 {
+		args = append(args, "--max-budget-usd", fmt.Sprintf("%.2f", req.MaxBudgetUSD))
+	}
 	return args
 }
 
@@ -102,6 +112,8 @@ func (c Claude) Run(ctx context.Context, req Request, attempt int, sink event.Si
 
 	p := &streamParser{attempt: attempt, sink: sink, tools: map[string]string{}}
 	parseErr := p.read(stdout)
+	// keep draining so a reader error cannot leave claude blocked on a full pipe
+	_, _ = io.Copy(io.Discard, stdout)
 	waitErr := cmd.Wait()
 
 	res := p.result
@@ -136,16 +148,31 @@ type streamParser struct {
 }
 
 type streamLine struct {
-	Type      string          `json:"type"`
-	Subtype   string          `json:"subtype"`
-	SessionID string          `json:"session_id"`
-	Model     string          `json:"model"`
-	Message   *streamMessage  `json:"message"`
-	IsError   bool            `json:"is_error"`
-	Result    string          `json:"result"`
-	NumTurns  int             `json:"num_turns"`
-	CostUSD   float64         `json:"total_cost_usd"`
-	Errors    json.RawMessage `json:"errors"`
+	Type      string         `json:"type"`
+	Subtype   string         `json:"subtype"`
+	SessionID string         `json:"session_id"`
+	Model     string         `json:"model"`
+	Message   *streamMessage `json:"message"`
+	IsError   bool           `json:"is_error"`
+	Result    string         `json:"result"`
+	NumTurns  int            `json:"num_turns"`
+	CostUSD   float64        `json:"total_cost_usd"`
+	Event     *streamEvent   `json:"event"`
+	RateLimit *rateLimitInfo `json:"rate_limit_info"`
+}
+
+// streamEvent is a raw api event, sent with --include-partial-messages.
+type streamEvent struct {
+	Type  string `json:"type"`
+	Delta struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	} `json:"delta"`
+}
+
+type rateLimitInfo struct {
+	Status   string `json:"status"`
+	ResetsAt int64  `json:"resetsAt"`
 }
 
 type streamMessage struct {
@@ -187,6 +214,18 @@ func (p *streamParser) handle(l streamLine) {
 		p.result.SessionID = l.SessionID
 	}
 	switch l.Type {
+	case "stream_event":
+		if l.Event != nil && l.Event.Type == "content_block_delta" && l.Event.Delta.Type == "text_delta" && l.Event.Delta.Text != "" {
+			p.sink(event.AgentTextDelta{Attempt: p.attempt, Text: l.Event.Delta.Text})
+		}
+	case "rate_limit_event":
+		if l.RateLimit != nil && l.RateLimit.Status != "" && l.RateLimit.Status != "allowed" && l.RateLimit.Status != "allowed_warning" {
+			msg := "claude is rate limited (" + l.RateLimit.Status + ")"
+			if l.RateLimit.ResetsAt > 0 {
+				msg += ", resets at " + time.Unix(l.RateLimit.ResetsAt, 0).Format("15:04")
+			}
+			p.sink(event.Log{Level: "warn", Msg: msg})
+		}
 	case "system":
 		if l.Subtype == "init" && l.Model != "" {
 			p.result.Model = l.Model

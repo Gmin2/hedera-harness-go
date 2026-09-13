@@ -2,10 +2,12 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"github.com/Gmin2/hedera-harness-go/internal/target"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
@@ -83,22 +85,36 @@ func launch(ctx context.Context, path, net string, sink event.Sink) error {
 	return nil
 }
 
-// runAgent starts the claude loop from the tui, judged on the selected network.
-func runAgent(dir string) func(ctx context.Context, prompt string, judges []string, net string, sink event.Sink) error {
-	return func(ctx context.Context, prompt string, judges []string, net string, sink event.Sink) error {
-		mode, err := network.ParseMode(net)
+// runAgent runs one prompt of a tui conversation, judged on the selected network.
+func runAgent(dir string) func(ctx context.Context, req tui.AgentRequest, sink event.Sink) error {
+	turns := 0
+	return func(ctx context.Context, req tui.AgentRequest, sink event.Sink) error {
+		mode, err := network.ParseMode(req.Network)
 		if err != nil {
 			return err
 		}
+		if req.SessionID == "" {
+			turns = 0
+		}
+		turns++
+		var maxCost float64
+		if v := os.Getenv("HH_AGENT_MAX_COST"); v != "" {
+			fmt.Sscanf(v, "%g", &maxCost)
+		}
 		return agent.Loop(ctx, agent.Options{
-			Prompt:  prompt,
-			Dir:     dir,
-			Judges:  judges,
-			Network: mode,
-			Model:   os.Getenv("HH_AGENT_MODEL"),
-			HH:      hhPath(),
-			Agent:   agent.Claude{},
-			Open:    target.Open,
+			Prompt:         req.Prompt,
+			Dir:            dir,
+			Judges:         req.Judges,
+			Network:        mode,
+			Model:          os.Getenv("HH_AGENT_MODEL"),
+			HH:             hhPath(),
+			Agent:          agent.Claude{},
+			Open:           target.Open,
+			SessionID:      req.SessionID,
+			Turn:           turns,
+			MaxCostUSD:     maxCost,
+			AttemptTimeout: 20 * time.Minute,
+			Stream:         true,
 		}, sink)
 	}
 }

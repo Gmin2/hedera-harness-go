@@ -101,12 +101,21 @@ type RunFinished struct {
 // works and hh scenarios judge the result. Judge runs emit the run events above.
 
 type AgentStarted struct {
+	Attempt     int    `json:"attempt"`
+	MaxAttempts int    `json:"max_attempts"`
+	Turn        int    `json:"turn"`  // prompts sent in this conversation, starting at 1
+	Agent       string `json:"agent"` // claude
+	Model       string `json:"model,omitempty"`
+	Prompt      string `json:"prompt"`
+	Repair      bool   `json:"repair"`
+	Dir         string `json:"dir"`
+}
+
+// AgentTextDelta is a piece of text while the agent is still writing it.
+// The complete block follows as AgentText, which replaces the pieces.
+type AgentTextDelta struct {
 	Attempt int    `json:"attempt"`
-	Agent   string `json:"agent"` // claude
-	Model   string `json:"model,omitempty"`
-	Prompt  string `json:"prompt"`
-	Repair  bool   `json:"repair"`
-	Dir     string `json:"dir"`
+	Text    string `json:"text"`
 }
 
 type AgentText struct {
@@ -151,11 +160,13 @@ type JudgeFinished struct {
 }
 
 type LoopFinished struct {
-	Status   Status        `json:"status"`
-	Attempts int           `json:"attempts"`
-	CostUSD  float64       `json:"cost_usd"`
-	Elapsed  time.Duration `json:"elapsed_ns"`
-	Error    string        `json:"error,omitempty"`
+	Status Status `json:"status"`
+	// SessionID continues the conversation with the next prompt.
+	SessionID string        `json:"session_id,omitempty"`
+	Attempts  int           `json:"attempts"`
+	CostUSD   float64       `json:"cost_usd"`
+	Elapsed   time.Duration `json:"elapsed_ns"`
+	Error     string        `json:"error,omitempty"`
 }
 
 func (RunStarted) event()        {}
@@ -167,6 +178,7 @@ func (AssertionFinished) event() {}
 func (Log) event()               {}
 func (RunFinished) event()       {}
 func (AgentStarted) event()      {}
+func (AgentTextDelta) event()    {}
 func (AgentText) event()         {}
 func (AgentTool) event()         {}
 func (AgentToolResult) event()   {}

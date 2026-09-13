@@ -14,8 +14,8 @@
      … (7 lines hidden)                                                                 ◇  mock  operator 0.0.2
 
    The scenario schedules an hbar transfer from bob to carol and expects it to          Agent ───────────────────────
-   execute. I'll add a payout helper that creates the schedule and wire it into the     ● attempt 1           working
-   treasury command.                                                                      0 turns · $0.00
+   execute. I'll add a payout helper that creates the schedule and wire it into the     ● turn 1              working
+   treasury command.                                                                      $0.00 this conversation
 
    ✓ Write internal/payout/payout.go                                                    Judges ──────────────────────
                                                                                         ○ token-flow

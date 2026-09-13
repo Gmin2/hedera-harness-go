@@ -29,6 +29,15 @@ type Options struct {
 	HH          string // path of the hh binary the agent can call
 	Agent       Runner
 	AgentName   string
+	// SessionID continues an earlier conversation, Turn numbers this prompt in it.
+	SessionID string
+	Turn      int
+	// MaxCostUSD stops the loop once the attempts together cost this much.
+	MaxCostUSD float64
+	// AttemptTimeout bounds one agent attempt, zero means no limit.
+	AttemptTimeout time.Duration
+	// Stream sends text as the agent writes it.
+	Stream bool
 	// Open connects to the judge network. The cli passes the same helper
 	// hh run uses, so a judge run is identical to a manual one.
 	Open func(ctx context.Context, mode network.Mode) (*network.Target, func(), error)
@@ -46,12 +55,16 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 	if o.AgentName == "" {
 		o.AgentName = "claude"
 	}
+	if o.Turn <= 0 {
+		o.Turn = 1
+	}
 	start := time.Now()
 	total := 0.0
 	system := SystemPrompt(o.HH, o.Judges, string(o.Network))
+	prompt, session := o.Prompt, o.SessionID
 
 	finish := func(status event.Status, attempts int, err error) error {
-		lf := event.LoopFinished{Status: status, Attempts: attempts, CostUSD: total, Elapsed: time.Since(start)}
+		lf := event.LoopFinished{Status: status, SessionID: session, Attempts: attempts, CostUSD: total, Elapsed: time.Since(start)}
 		if err != nil {
 			lf.Error = err.Error()
 		}
@@ -59,23 +72,42 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 		return err
 	}
 
-	prompt, session := o.Prompt, ""
 	for attempt := 1; attempt <= o.MaxAttempts; attempt++ {
+		budget := 0.0
+		if o.MaxCostUSD > 0 {
+			budget = o.MaxCostUSD - total
+			if budget < 0.01 {
+				return finish(event.Failed, attempt-1, fmt.Errorf("budget of $%g used up", o.MaxCostUSD))
+			}
+		}
 		sink(event.AgentStarted{
-			Attempt: attempt,
-			Agent:   o.AgentName,
-			Model:   o.Model,
-			Prompt:  prompt,
-			Repair:  attempt > 1,
-			Dir:     o.Dir,
+			Attempt:     attempt,
+			MaxAttempts: o.MaxAttempts,
+			Turn:        o.Turn,
+			Agent:       o.AgentName,
+			Model:       o.Model,
+			Prompt:      prompt,
+			Repair:      attempt > 1,
+			Dir:         o.Dir,
 		})
-		res, err := o.Agent.Run(ctx, Request{
+		attemptCtx, cancel := ctx, context.CancelFunc(func() {})
+		if o.AttemptTimeout > 0 {
+			attemptCtx, cancel = context.WithTimeout(ctx, o.AttemptTimeout)
+		}
+		res, err := o.Agent.Run(attemptCtx, Request{
 			Prompt:       prompt,
 			Dir:          o.Dir,
 			Model:        o.Model,
 			SessionID:    session,
 			SystemPrompt: system,
+			Stream:       o.Stream,
+			MaxBudgetUSD: budget,
 		}, attempt, sink)
+		timedOut := attemptCtx.Err() == context.DeadlineExceeded && ctx.Err() == nil
+		cancel()
+		if timedOut {
+			err = fmt.Errorf("attempt took longer than %s", o.AttemptTimeout)
+		}
 		total += res.CostUSD
 		fin := event.AgentFinished{
 			Attempt:   attempt,
@@ -90,15 +122,15 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 		if err != nil {
 			fin.Status, fin.Error = event.Failed, err.Error()
 		}
+		if res.SessionID != "" {
+			session = res.SessionID
+		}
 		sink(fin)
 		if ctx.Err() != nil {
 			return finish(event.Failed, attempt, ctx.Err())
 		}
 		if err != nil {
 			return finish(event.Failed, attempt, err)
-		}
-		if res.SessionID != "" {
-			session = res.SessionID
 		}
 
 		if len(o.Judges) == 0 {

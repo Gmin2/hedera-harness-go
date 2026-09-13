@@ -91,7 +91,16 @@ hh agent "write stablecoin.yaml: token USDX with 2 decimals and a kyc key. alice
 | agent feedback | after the whole attempt | the agent can run `hh check` and `hh run` on the mock in milliseconds while it works |
 | repair | new prompt from findings | findings go back into the same session with `--resume` |
 
-The agent gets a system prompt generated from the op and assertion registries, so the scenario reference it sees is always the one the code accepts. In the tui, type a prompt instead of a command, and `judge <scenario>` picks what it must pass.
+The agent gets a system prompt generated from the op and assertion registries, so the scenario reference it sees is always the one the code accepts.
+
+It is a conversation, like claude code. In the tui (`./hh`) type a question or a task, the answer streams in, and every follow up continues the same claude session. `/judge <scenario>` picks what the work must pass, `/new` starts over, esc cancels. From the cli, `hh agent --resume <session> "..."` continues where the last run left off.
+
+| flag / env | does |
+|---|---|
+| `--model`, `HH_AGENT_MODEL` | claude model, eg `haiku` for quick demos |
+| `--max-cost`, `HH_AGENT_MAX_COST` | stop the loop once attempts cost this many usd (also passed to claude as `--max-budget-usd`) |
+| `--timeout` | longest one attempt may run, default 20m |
+| `--max-attempts` | attempts including repairs, default 3 |
 
 ## networks
 

@@ -55,6 +55,14 @@ type Plain struct {
 	section string
 	started map[int]event.StepStarted
 	tools   map[string]event.AgentTool
+	live    bool // a streamed agent text line is still open
+}
+
+func (p *Plain) endLive() {
+	if p.live {
+		p.live = false
+		p.println("")
+	}
 }
 
 func NewPlain(w io.Writer, width int) *Plain {
@@ -99,15 +107,39 @@ func (p *Plain) Sink(e event.Event) {
 		p.finish(e)
 	case event.AgentStarted:
 		p.agentStarted(e)
+	case event.AgentTextDelta:
+		// print pieces as they come, the final AgentText then only ends the line.
+		// each line is styled on its own so lipgloss does not pad them to one width
+		text := e.Text
+		if !p.live {
+			text = strings.TrimLeft(text, " \n")
+			lipgloss.Fprint(p.w, "   ")
+			p.live = true
+		}
+		for i, line := range strings.Split(text, "\n") {
+			if i > 0 {
+				lipgloss.Fprint(p.w, "\n   ")
+			}
+			if line != "" {
+				lipgloss.Fprint(p.w, sBase.Render(line))
+			}
+		}
 	case event.AgentText:
+		if p.live {
+			p.live = false
+			p.println("")
+			return
+		}
 		for _, line := range strings.Split(strings.TrimSpace(e.Text), "\n") {
 			p.println(truncate("   "+sBase.Render(line), p.width))
 		}
 	case event.AgentTool:
+		p.endLive()
 		p.tools[e.ID] = e
 	case event.AgentToolResult:
 		p.toolResult(e)
 	case event.AgentFinished:
+		p.endLive()
 		p.agentFinished(e)
 	case event.JudgeFinished:
 		p.judgeFinished(e)
@@ -190,6 +222,9 @@ func (p *Plain) loopFinished(e event.LoopFinished) {
 	summary := fmt.Sprintf("in %d attempt(s) · $%.2f · %s", e.Attempts, e.CostUSD, short(e.Elapsed))
 	if e.Status == event.Passed {
 		p.println(fmt.Sprintf(" %s %s %s", sOK, lipgloss.NewStyle().Foreground(cGreen).Render("done"), sMuted.Render(summary)))
+		if e.SessionID != "" {
+			p.println("   " + sSubtle.Render("continue this conversation: hh agent --resume "+e.SessionID+" \"...\""))
+		}
 	} else {
 		p.println(fmt.Sprintf(" %s %s %s", sFail, lipgloss.NewStyle().Foreground(cRed).Render("gave up"), sMuted.Render(summary)))
 		if e.Error != "" {

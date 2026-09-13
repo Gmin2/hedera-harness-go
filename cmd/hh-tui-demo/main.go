@@ -1,5 +1,6 @@
 // Command hh-tui-demo runs the hh tui against a scripted fake runner. Any
-// text that is not a command plays a fake agent loop.
+// text that is not a command plays a fake agent turn, and follow up prompts
+// continue the same fake conversation.
 package main
 
 import (
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/Gmin2/hedera-harness-go/internal/event"
 	"github.com/Gmin2/hedera-harness-go/internal/tui"
 	"github.com/Gmin2/hedera-harness-go/internal/tui/demo"
 )
@@ -35,8 +37,10 @@ func main() {
 			{Name: "scheduled-payout", Path: "scenarios/scheduled-payout.yaml", Description: "multi sig scheduled hbar transfer", Steps: 6, Assertions: 4},
 			{Name: "nft-mint", Path: "scenarios/nft-mint.yaml", Description: "mint and transfer an nft collection", Steps: 5, Assertions: 5},
 		},
-		Launch:    demo.Launch,
-		Agent:     demo.Agent,
+		Launch: demo.Launch,
+		Agent: func(ctx context.Context, req tui.AgentRequest, sink event.Sink) error {
+			return demo.Agent(ctx, demo.Request(req), sink)
+		},
 		AgentName: "claude",
 	})
 	if err != nil {
