@@ -4,6 +4,7 @@
 package mirror
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -243,4 +244,39 @@ func (c *Client) Transaction(ctx context.Context, sdkID string) (*Transaction, s
 		return nil, u, ErrNotFound
 	}
 	return &list.Transactions[0], u, nil
+}
+
+// ContractCall runs a read only call through the mirror node web3 api and
+// returns the hex result. to and data are 0x prefixed.
+func (c *Client) ContractCall(ctx context.Context, to, data string) (string, string, error) {
+	u := c.URL("contracts/call", nil)
+	body, _ := json.Marshal(map[string]any{"to": to, "data": data, "estimate": false, "block": "latest"})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
+	if err != nil {
+		return "", u, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return "", u, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode == http.StatusNotFound {
+		return "", u, ErrNotFound
+	}
+	if resp.StatusCode >= 400 {
+		var e Error
+		if json.Unmarshal(raw, &e) == nil && len(e.Status.Messages) > 0 {
+			return "", u, fmt.Errorf("contract call %s: %s", resp.Status, e.Status.Messages[0].Message)
+		}
+		return "", u, fmt.Errorf("contract call: %s", resp.Status)
+	}
+	var out struct {
+		Result string `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", u, err
+	}
+	return out.Result, u, nil
 }

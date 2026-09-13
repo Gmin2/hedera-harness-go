@@ -131,6 +131,17 @@ It is a conversation, like claude code. In the tui (`./hh`) type a question or a
 | `local` | [solo](https://solo.hiero.org) on `127.0.0.1:35211`, mirror rest `:38081`. `HH_LOCAL_PROFILE=localnode` for hiero local node (deprecated after sept 2026) | a running solo |
 | `testnet` | hedera testnet, links to hashscan | `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY` |
 
+### scaffold-hbar dapps
+
+```sh
+hh init --scaffold-hbar my-dapp --install
+cd my-dapp && cp .env.example .env    # your portal account funds the burner
+hh wallet -n testnet
+hh                                    # ask claude for a contract or frontend feature
+```
+
+The generated hh.yaml connects the flow: a burner wallet funded per run, checks that compile the contracts, type check the frontend and deploy with the burner key, then a judge scenario that reads the deployed `HederaToken` through `contract.call`. When claude's change breaks any of them, the failing output goes back to the same session.
+
 ### wallets
 
 Like connecting a wallet in a dapp, hh has one connected wallet that pays for and signs every scenario run, judge run and repair loop. Open the picker with ctrl+w (or `/wallet`) in the tui, `hh wallet` in the cli, or set it in hh.yaml.
@@ -170,7 +181,7 @@ The mock charges no fees so hbar assertions are exact. Write `gte`/`lte` for acc
 
 steps: `hbar.transfer`, `account.update`, `token.create` (fungible, nft, keys, fixed/fractional/royalty fees), `token.associate`, `token.mint`, `token.transfer`, `token.airdrop` (with `recipients`), `token.claim`, `token.cancel`, `token.reject`, `token.grant_kyc`, `token.revoke_kyc`, `token.freeze`, `token.unfreeze`, `token.pause`, `token.unpause`, `topic.create`, `topic.submit`, `schedule.create` (wraps a transfer, token transfer, mint, associate or topic submit), `schedule.sign`
 
-assertions: `account.hbar`, `token.balance`, `token.supply`, `token.relationship` (associated, kyc, freeze, automatic), `token.paused`, `nft.owner`, `topic.messages` (count, contains, sequence, `verify_chain` recomputes the v3 running hash of every message), `schedule.executed` (also checks the inner transaction result, so a schedule that ran but reverted does not pass), `airdrop.pending`
+assertions: `account.hbar`, `token.balance`, `token.supply`, `token.relationship` (associated, kyc, freeze, automatic), `token.paused`, `nft.owner`, `topic.messages` (count, contains, sequence, `verify_chain` recomputes the v3 running hash of every message), `schedule.executed` (also checks the inner transaction result, so a schedule that ran but reverted does not pass), `airdrop.pending`, `contract.call` (a read only call through the mirror node, contract by hardhat deployment name, 0x address or 0.0.x id, actor names as address args, eg `{ contract: HederaToken, function: "balanceOf(address)", args: [alice], equals: 10000e18 }`, local and testnet only)
 
 numeric assertions take `equals`, `not`, `gt`, `gte`, `lt`, `lte`.
 
