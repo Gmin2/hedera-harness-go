@@ -4,3 +4,4 @@ tmp/
 .env
 *.out
 /hedera-harness-go
+demo/out/
