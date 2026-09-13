@@ -60,7 +60,7 @@ func (c Claude) command() string {
 func (c Claude) args(req Request) []string {
 	tools := c.Tools
 	if len(tools) == 0 {
-		tools = []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}
+		tools = []string{"Bash", "Read", "Edit", "Write", "MultiEdit", "Glob", "Grep", "Skill", "TodoWrite"}
 	}
 	args := []string{
 		"-p", req.Prompt,
@@ -68,6 +68,8 @@ func (c Claude) args(req Request) []string {
 		"--verbose",
 		"--permission-mode", "acceptEdits",
 		"--allowedTools", strings.Join(tools, ","),
+		// keys live in .env, hh signs and the agent never needs them
+		"--disallowedTools", "Read(.env),Read(**/.env),Bash(cat .env:*),Bash(cat */.env:*)",
 	}
 	if req.SystemPrompt != "" {
 		args = append(args, "--append-system-prompt", req.SystemPrompt)
