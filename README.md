@@ -141,16 +141,15 @@ It is a conversation, like claude code. In the tui (`./hh`) type a question or a
 | `local` | [solo](https://solo.hiero.org) on `127.0.0.1:35211`, mirror rest `:38081`. `HH_LOCAL_PROFILE=localnode` for hiero local node (deprecated after sept 2026) | a running solo |
 | `testnet` | hedera testnet, links to hashscan | `HEDERA_OPERATOR_ID`, `HEDERA_OPERATOR_KEY` |
 
-### scaffold-hbar dapps
+### build a dapp by describing it
 
 ```sh
-hh init --scaffold-hbar my-dapp --install
-cd my-dapp && cp .env.example .env    # your portal account funds the burner
-hh wallet -n testnet
-hh                                    # ask claude for a contract or frontend feature
+hh init --scaffold-hbar my-dapp --install   # scaffold-hbar + hh.yaml + the official hedera skills in .claude/skills
+cd my-dapp && cp .env.example .env          # your portal account deploys
+hh                                          # type: build a page where I can swap HBAR for USDC at a fixed rate
 ```
 
-The generated hh.yaml connects the flow: a burner wallet funded per run, checks that compile the contracts, type check the frontend and deploy with the burner key, then a judge scenario that reads the deployed `HederaToken` through `contract.call`. When claude's change breaks any of them, the failing output goes back to the same session.
+In a scaffold-hbar project the agent switches to dapp mode: claude gets a hedera dapp system prompt (project layout, tinybar vs weibar, hashio gas, HTS association, when to use HTS or ERC20) and the hedera-token-service, hedera-consensus-service, hts-system-contract and hss-system-contract skills. It writes the contracts, deploy scripts and the Next.js page. It cannot deploy and cannot read `.env`: after each attempt hh compiles, type checks and deploys to testnet with the connected wallet, and sends any failure back to the same session. When everything passes, run `yarn next:start` and open http://localhost:3000.
 
 ### wallets
 

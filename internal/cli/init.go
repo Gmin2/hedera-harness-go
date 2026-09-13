@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -26,32 +27,30 @@ assert:
   - account.hbar: { account: bob, equals: 12.5 }
 `
 
-const scaffoldConfig = `# hh on a scaffold-hbar dapp. flags override these.
+const scaffoldConfig = `# hh on a scaffold-hbar dapp: type what to build, claude builds it, hh deploys and judges.
 network: testnet
-# a fresh ecdsa account funded from your portal account for each run, swept back
-# after. deploys sign with it through __RUNTIME_DEPLOYER_PRIVATE_KEY.
-wallet: { kind: burner, fund: 50 }
-
-scenarios: [.hh/scenarios]
+# the connected wallet deploys the contracts. default is your portal account from .env,
+# burner creates a fresh funded account per run: wallet: { kind: burner, fund: 120 }
+wallet: default
 
 agent:
   model: sonnet
-  max_cost: 3
+  max_cost: 5
   max_attempts: 3
   timeout: 30m
 
-# what claude's work must pass after every attempt, in this order
+# run after every attempt, failures go back to claude
 judge:
   checks:
     - { name: compile, run: yarn hardhat:compile, timeout: 5m }
     - { name: frontend types, run: yarn next:check-types, timeout: 5m }
-    - { name: deploy, run: cd packages/hardhat && npx hardhat deploy --network hederaTestnet --reset, timeout: 10m }
-  scenarios:
-    - .hh/scenarios/hedera-token.yaml
+    - { name: deploy to testnet, run: cd packages/hardhat && npx hardhat deploy --network hederaTestnet --reset, timeout: 10m }
+  # optional on-chain checks with hh scenarios, eg .hh/scenarios/hedera-token.yaml
+  scenarios: []
 `
 
 const scaffoldScenario = `name: hedera token deployed
-description: reads the HederaToken the deploy check just put on testnet
+description: optional on-chain check, reads the HederaToken the deploy check put on testnet
 
 assert:
   - contract.call: { contract: HederaToken, function: "symbol()", returns: string, equals: HTK }
@@ -65,9 +64,10 @@ HEDERA_OPERATOR_KEY=
 
 func initCmd() *cobra.Command {
 	var (
-		scaffold bool
-		from     string
-		install  bool
+		scaffold   bool
+		from       string
+		skillsFrom string
+		install    bool
 	)
 	cmd := &cobra.Command{
 		Use:   "init [dir]",
@@ -88,7 +88,7 @@ func initCmd() *cobra.Command {
 				{".env.example", envExample},
 			}
 			if scaffold {
-				if dir == "." {
+				if len(args) == 0 {
 					dir = "scaffold-hbar"
 				}
 				if err := cloneScaffold(cmd, from, dir); err != nil {
@@ -98,6 +98,12 @@ func initCmd() *cobra.Command {
 					{project.FileName, scaffoldConfig},
 					{filepath.Join(".hh", "scenarios", "hedera-token.yaml"), scaffoldScenario},
 					{".env.example", envExample},
+				}
+				if err := ignoreEnv(dir); err != nil {
+					return err
+				}
+				if err := installSkills(cmd, skillsFrom, dir); err != nil {
+					fmt.Fprintf(w, "  skipped hedera skills: %v\n", err)
 				}
 			}
 			for _, f := range files {
@@ -128,7 +134,7 @@ func initCmd() *cobra.Command {
 				}
 				fmt.Fprintln(w, "        cp .env.example .env   and fill in your portal account")
 				fmt.Fprintln(w, "        hh wallet          check the account that funds the burner")
-				fmt.Fprintln(w, "        hh                 ask claude for a feature, the checks and contract judge decide")
+				fmt.Fprintln(w, "        hh                 type what to build, eg: build a page where I can swap HBAR for USDC")
 				return nil
 			}
 			fmt.Fprintln(w, "\n  next: hh run    (judges on the mock network)")
@@ -139,7 +145,59 @@ func initCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&scaffold, "scaffold-hbar", false, "clone the scaffold-hbar dapp template and set it up for hh")
 	cmd.Flags().StringVar(&from, "from", "https://github.com/hedera-dev/scaffold-hbar.git", "git url or local path to clone scaffold-hbar from")
 	cmd.Flags().BoolVar(&install, "install", false, "run yarn install after cloning")
+	cmd.Flags().StringVar(&skillsFrom, "skills-from", "https://github.com/hedera-dev/hedera-skills.git", "git url or local path of hedera-skills, copied into .claude/skills")
 	return cmd
+}
+
+// ignoreEnv makes sure the operator key in .env never gets committed.
+func ignoreEnv(dir string) error {
+	path := filepath.Join(dir, ".gitignore")
+	b, _ := os.ReadFile(path)
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.TrimSpace(line) == ".env" {
+			return nil
+		}
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString("\n.env\n")
+	return err
+}
+
+// hedera skills claude code loads from .claude/skills when building the dapp
+var dappSkills = []string{
+	"native-services-js/skills/hedera-token-service",
+	"native-services-js/skills/hedera-consensus-service",
+	"system-contracts/skills/hts-system-contract",
+	"system-contracts/skills/hss-system-contract",
+}
+
+func installSkills(cmd *cobra.Command, from, dir string) error {
+	src := from
+	if _, err := os.Stat(filepath.Join(from, "plugins")); err != nil {
+		tmp, err := os.MkdirTemp("", "hh-skills-")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(tmp)
+		git := exec.CommandContext(cmd.Context(), "git", "clone", "--depth", "1", "-q", from, tmp)
+		if err := git.Run(); err != nil {
+			return fmt.Errorf("git clone %s: %w", from, err)
+		}
+		src = tmp
+	}
+	for _, rel := range dappSkills {
+		from := filepath.Join(src, "plugins", rel)
+		to := filepath.Join(dir, ".claude", "skills", filepath.Base(rel))
+		if err := os.CopyFS(to, os.DirFS(from)); err != nil && !errors.Is(err, os.ErrExist) {
+			return err
+		}
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "  added   .claude/skills (%d hedera skills)\n", len(dappSkills))
+	return nil
 }
 
 func cloneScaffold(cmd *cobra.Command, from, dir string) error {

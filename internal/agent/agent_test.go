@@ -71,7 +71,7 @@ func TestClaudeArgs(t *testing.T) {
 	}
 	args = append(args, Claude{}.args(Request{Stream: true, MaxBudgetUSD: 0.5})...)
 	joined = strings.Join(args, " ")
-	for _, want := range []string{"-p fix it", "--output-format stream-json", "--verbose", "--resume s-9", "--model sonnet", "--append-system-prompt sys", "--allowedTools Bash,Read,Edit,Write,Glob,Grep", "--include-partial-messages", "--max-budget-usd 0.50"} {
+	for _, want := range []string{"-p fix it", "--output-format stream-json", "--verbose", "--resume s-9", "--model sonnet", "--append-system-prompt sys", "--allowedTools Bash,Read,Edit,Write,MultiEdit,Glob,Grep,Skill,TodoWrite", "--include-partial-messages", "--max-budget-usd 0.50"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("args missing %q: %s", want, joined)
 		}
@@ -355,5 +355,23 @@ func TestLoopRejectsEditedJudge(t *testing.T) {
 	})
 	if err == nil || len(judges) != 1 || judges[0].Status != event.Failed || !strings.Contains(strings.Join(judges[0].Findings, " "), "changed during the run") {
 		t.Fatalf("an edited judge must fail: err %v judges %+v", err, judges)
+	}
+}
+
+func TestDappModeDetection(t *testing.T) {
+	dir := t.TempDir()
+	if IsDapp(dir) {
+		t.Fatal("empty dir is not a dapp")
+	}
+	os.MkdirAll(filepath.Join(dir, "packages", "hardhat"), 0o755)
+	os.MkdirAll(filepath.Join(dir, "packages", "nextjs"), 0o755)
+	if !IsDapp(dir) {
+		t.Fatal("scaffold-hbar layout should be a dapp")
+	}
+	p := DappPrompt("hh", nil, []Check{{Run: "yarn hardhat:compile"}}, "testnet")
+	for _, want := range []string{"tinybars", "weibar", "You cannot deploy", "yarn hardhat:compile", "useScaffoldWriteContract"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("dapp prompt missing %q", want)
+		}
 	}
 }

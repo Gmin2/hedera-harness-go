@@ -70,12 +70,19 @@ func Loop(ctx context.Context, o Options, sink event.Sink) error {
 	start := time.Now()
 	total := 0.0
 	system := SystemPrompt(o.HH, o.Judges, o.Checks, string(o.Network))
+	dapp := IsDapp(o.Dir)
+	if dapp {
+		system = DappPrompt(o.HH, o.Judges, o.Checks, string(o.Network))
+	}
 	// judges that exist before the agent starts are the contract, it may not
 	// rewrite them to pass. judges it is asked to create stay editable.
 	pinned := pinJudges(o.Dir, o.Judges)
 	prompt, session := o.Prompt, o.SessionID
 
 	finish := func(status event.Status, attempts int, err error) error {
+		if dapp && status == event.Passed {
+			sink(event.Log{Level: "info", Msg: "dapp ready: cd " + o.Dir + " && yarn next:start, then open http://localhost:3000"})
+		}
 		lf := event.LoopFinished{Status: status, SessionID: session, Attempts: attempts, CostUSD: total, Elapsed: time.Since(start)}
 		if err != nil {
 			lf.Error = err.Error()
