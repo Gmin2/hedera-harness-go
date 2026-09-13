@@ -2,7 +2,6 @@ package tui
 
 import (
 	"image"
-	"image/color"
 	"os"
 	"strings"
 
@@ -103,7 +102,7 @@ func (m *Model) relayout() {
 	for range 2 {
 		height := m.editor.Height()
 		m.layout = m.generateLayout(m.width, m.height)
-		m.editor.SetWidth(max(1, editorInner(m.layout.editor).Dx()))
+		m.editor.SetWidth(max(1, m.layout.editor.Dx()))
 		if m.editor.Height() == height {
 			break
 		}
@@ -159,9 +158,9 @@ func (m *Model) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 		}
 	}
 
-	inner := editorInner(l.editor)
-	uv.NewStyledString(m.editor.View()).Draw(scr, inner)
-	tint(scr, editorPanel(l.editor), m.sty.Editor.Background)
+	// the rows above and below the textarea hold a thin rule, like the section rules
+	rule := m.sty.Section.Line.Render(strings.Repeat("─", max(0, l.editor.Dx())))
+	uv.NewStyledString(rule+"\n"+m.editor.View()+"\n"+rule).Draw(scr, l.editor)
 
 	if m.state == stateRun && m.compact && m.detailsOpen {
 		uv.NewStyledString(m.detailsView(l.details.Dx(), l.details.Dy())).Draw(scr, l.details)
@@ -177,45 +176,10 @@ func (m *Model) Draw(scr uv.Screen, area uv.Rectangle) *tea.Cursor {
 	}
 	cur := m.editor.Cursor()
 	if cur != nil {
-		cur.X += inner.Min.X
-		cur.Y += inner.Min.Y
+		cur.X += l.editor.Min.X
+		cur.Y += l.editor.Min.Y + 1
 	}
 	return cur
-}
-
-// editorPanel is the tinted box under the prompt, below the gap row.
-func editorPanel(r image.Rectangle) image.Rectangle {
-	r.Min.Y++
-	return r
-}
-
-// editorInner is where the textarea itself goes, inset by one cell of padding.
-func editorInner(r image.Rectangle) image.Rectangle {
-	p := editorPanel(r)
-	return image.Rect(p.Min.X+1, p.Min.Y+1, max(p.Min.X+1, p.Max.X-1), max(p.Min.Y+1, p.Max.Y-1))
-}
-
-// tint gives every cell in area a background color, keeping whatever is
-// already drawn there. Cells that set their own background are left alone.
-func tint(scr uv.Screen, area image.Rectangle, bg color.Color) {
-	for y := area.Min.Y; y < area.Max.Y; y++ {
-		for x := area.Min.X; x < area.Max.X; {
-			cell := scr.CellAt(x, y)
-			if cell == nil {
-				c := uv.EmptyCell
-				c.Style.Bg = bg
-				scr.SetCell(x, y, &c)
-				x++
-				continue
-			}
-			if cell.Style.Bg == nil {
-				c := *cell
-				c.Style.Bg = bg
-				scr.SetCell(x, y, &c)
-			}
-			x += max(1, cell.Width)
-		}
-	}
 }
 
 func prettyPath(p string) string {

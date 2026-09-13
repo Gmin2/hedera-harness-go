@@ -19,9 +19,9 @@
 
 
 
-                                                                                         
-    > Ready. Try run <scenario>, network <name> or ctrl+p                                
-  :::                                                                                    
-  :::                                                                                    
-                                                                                         
+ ────────────────────────────────────────────────────────────────────────────────────────
+   > Ready. Try run <scenario>, network <name> or ctrl+p                                 
+ :::  
+ :::  
+ ────────────────────────────────────────────────────────────────────────────────────────
  ERROR  unknown command "deploy", try run, network, clear or quit                         

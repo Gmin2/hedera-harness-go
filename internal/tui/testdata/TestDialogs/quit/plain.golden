@@ -23,9 +23,9 @@
     hashscan  hashscan.io/testnet/transaction/0.0.2@1757712000.000000105                ○ assertions              0/6
 
                                                                                         Assertions ──────────────────
-                                                                                        ✓ 0  × 0  ○ 6
-    > Running token-flow... esc to cancel                                              
-  :::                                                                                  
-  :::                                                                                  
-                                                                                       
+ ────────────────────────────────────────────────────────────────────────────────────── ✓ 0  × 0  ○ 6
+   > Running token-flow... esc to cancel                                               
+ :::  
+ :::  
+ ──────────────────────────────────────────────────────────────────────────────────────
  esc cancel run • tab focus run • ctrl+r scenarios • ctrl+p commands • ctrl+c quit • ctrl+g more
