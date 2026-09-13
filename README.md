@@ -21,11 +21,14 @@ and targets the gaps a first hour with it shows:
 ## quick start
 
 ```sh
-go install github.com/Gmin2/hedera-harness-go/cmd/hh@latest
+git clone https://github.com/Gmin2/hedera-harness-go && cd hedera-harness-go
+go build -o hh .
 
-hh run examples/            # every example, on the mock network
-hh                          # the interactive ui
+./hh run examples/          # every example, on the mock network
+./hh                        # the interactive ui
 ```
+
+or without cloning: `go install github.com/Gmin2/hedera-harness-go@latest` (the binary is named `hedera-harness-go`).
 
 A scenario:
 
@@ -119,6 +122,7 @@ scenario.yaml ─▶ runner ─▶ ops (yaml → sdk tx, signers) ─▶ hiero-s
 ## development
 
 ```sh
+go run .               # same as hh
 go test ./...          # includes every example scenario end to end on the mock network
 go run ./cmd/hh-tui-demo
 ```
