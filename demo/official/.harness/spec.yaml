@@ -1,0 +1,81 @@
+schemaVersion: 2
+
+name: my-feature
+description: What you want the agent to build in this project.
+
+baseline:
+  commands:
+    - name: install          # required — also used for install fingerprinting
+      command: yarn install
+    - name: build
+      command: yarn next:build
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Everything below is the harness default. Uncomment only to override.
+# These comments cannot drift: changing a default here changes nothing.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Which coding agent runs the generator. Presets ship with the harness, so flag
+# and model changes arrive with an upgrade instead of an edit here.
+# agent: cursor              # or: claude
+#
+# Feature description. A list delivers ordered increments onto one branch,
+# each with its own attempt budget; a failing increment stops the sequence.
+# prd: .harness/prd.md
+#
+# prd:
+#   - .harness/prds/01-foundation.md
+#   - .harness/prds/02-ui.md
+#
+# maxAttempts: 3             # repair attempts per run before stopping
+#
+# Each baseline command may set timeoutMs; the default is 10 minutes.
+#
+# validators:
+#   static: .harness/validators/static.json
+#   commands: .harness/validators/yarn.json
+#
+# Detected from the project when omitted: packageManager comes from
+# package.json / lockfiles, and forbiddenCommands is every manager that is not
+# the one in use.
+# constraints:
+#   packageManager: yarn@3.2.3
+#   workspaces:
+#     - packages/nextjs
+#
+# Defaults to .env plus one per workspace, for both the file check and the
+# content scan.
+# forbiddenFiles:
+#   - .env
+# secretScan:
+#   failOnFiles:
+#     - .env
+#   patterns:
+#     - name: private-key-assignment
+#       pattern: "(PRIVATE_KEY|OPERATOR_KEY)\\s*=\\s*(0x)?[0-9a-fA-F]{32,}"
+#
+# Files the run must produce. Empty by default — the validators are the gate.
+# requiredFiles:
+#   - packages/nextjs/app/my-feature/page.tsx
+#
+# ── Higher tiers (opt-in) ────────────────────────────────────────────────────
+#
+# Tier 2 boots the app and walks its routes.
+# validators:
+#   playwright: .harness/validators/playwright-smoke.yaml
+#
+# Tier 3 grades the running app against an acceptance contract. The validator
+# inherits the agent preset above, including how it receives Playwright MCP.
+# contract: .harness/acceptance-contract.json
+# validator:
+#   enabled: true
+#
+# Tier 3.5 provisions a funded ephemeral testnet account. Testnet only.
+# chainValidation:
+#   enabled: true
+#   network: testnet
+#   operator:
+#     accountIdEnv: HEDERA_OPERATOR_ID
+#     privateKeyEnv: HEDERA_OPERATOR_KEY
+#
+# Note: harness logs always live under .harness/runs/ and are not configurable.
