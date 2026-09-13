@@ -2,9 +2,10 @@ package mock
 
 import (
 	"crypto/sha512"
-	"encoding/binary"
 
 	"github.com/hiero-ledger/hiero-sdk-go/v2/proto/services"
+
+	"github.com/Gmin2/hedera-harness-go/internal/mirror"
 )
 
 const (
@@ -100,28 +101,16 @@ func (l *ledger) submitMessage(t *txn, b *services.ConsensusSubmitMessageTransac
 	return codeOK
 }
 
-// nextRunningHash chains sha384 over the previous hash and the message
-// fields, close to the version 3 layout but not guaranteed to be identical.
+// nextRunningHash is the real v3 running hash, so chains built on the mock
+// verify the same way as chains read from testnet.
 func nextRunningHash(prev []byte, topicNum int64, m *topicMessage) []byte {
-	h := sha512.New384()
-	h.Write(prev)
-	var buf [8]byte
-	put := func(v uint64) {
-		binary.BigEndian.PutUint64(buf[:], v)
-		h.Write(buf[:])
-	}
-	put(runningHashVersion)
-	put(0) // payer shard
-	put(0) // payer realm
-	put(uint64(m.payer))
-	put(0) // topic shard
-	put(0) // topic realm
-	put(uint64(topicNum))
-	put(uint64(m.consensus.Unix()))
-	binary.BigEndian.PutUint32(buf[:4], uint32(m.consensus.Nanosecond()))
-	h.Write(buf[:4])
-	put(m.sequence)
-	digest := sha512.Sum384(m.message)
-	h.Write(digest[:])
-	return h.Sum(nil)
+	return mirror.NextRunningHash(mirror.RunningHashInput{
+		Previous: prev,
+		Payer:    [3]int64{0, 0, m.payer},
+		Topic:    [3]int64{0, 0, topicNum},
+		Seconds:  m.consensus.Unix(),
+		Nanos:    int32(m.consensus.Nanosecond()),
+		Sequence: int64(m.sequence),
+		Message:  m.message,
+	})
 }

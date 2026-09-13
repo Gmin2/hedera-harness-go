@@ -119,6 +119,7 @@ func (o *scheduleCreate) Build(env *Env) (*Tx, error) {
 			p := []event.Param{param(o.As, r.ScheduleID)}
 			if r.ScheduledTransactionID != nil {
 				p = append(p, param("scheduled_tx", r.ScheduledTransactionID))
+				env.scheduledTx[o.As] = r.ScheduledTransactionID.String()
 			}
 			return p, env.Bind(o.As, "schedule", r.ScheduleID.String())
 		},

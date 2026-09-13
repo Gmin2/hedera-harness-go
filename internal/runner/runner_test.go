@@ -154,3 +154,35 @@ func describe(rep *runner.Report) string {
 	}
 	return b.String()
 }
+
+// A schedule counts as executed even when its inner transaction fails, the
+// false pass community prs chase on the original harness.
+func TestScheduleExecutedChecksInnerResult(t *testing.T) {
+	sc, err := scenario.Parse([]byte(`
+actors:
+  broke: { hbar: 1 }
+  payee: {}
+steps:
+  - schedule.create:
+      as: payout
+      tx:
+        hbar.transfer: { from: broke, to: payee, amount: 5 }
+  - schedule.sign: { schedule: payout, signer: broke }
+assert:
+  - schedule.executed: { schedule: payout }
+  - schedule.executed: { schedule: payout, result: INSUFFICIENT_ACCOUNT_BALANCE }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep := runner.Run(context.Background(), mockTarget(t), sc, runner.Defaults(network.Mock), nil)
+	if len(rep.Asserts) != 2 {
+		t.Fatal(describe(rep))
+	}
+	if a := rep.Asserts[0]; a.Status != event.Failed || !strings.Contains(a.Actual, "INSUFFICIENT_ACCOUNT_BALANCE") {
+		t.Fatalf("a reverted schedule must not pass by default:\n%s", describe(rep))
+	}
+	if a := rep.Asserts[1]; a.Status != event.Passed {
+		t.Fatalf("expecting the failure explicitly should pass:\n%s", describe(rep))
+	}
+}

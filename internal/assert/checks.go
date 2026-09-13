@@ -221,6 +221,9 @@ type topicMessages struct {
 	Contains string `yaml:"contains"`
 	Sequence int64  `yaml:"sequence"`
 	Equals   string `yaml:"equals"` // message text at sequence
+	// VerifyChain recomputes the v3 running hash of every message, proving
+	// none were changed, dropped or reordered.
+	VerifyChain bool `yaml:"verify_chain"`
 }
 
 func (c *topicMessages) Title() string { return c.Topic + " messages" }
@@ -236,6 +239,9 @@ func (c *topicMessages) Expected() string {
 	if c.Sequence > 0 {
 		p = append(p, fmt.Sprintf("#%d = %q", c.Sequence, c.Equals))
 	}
+	if c.VerifyChain {
+		p = append(p, "running hash chain intact")
+	}
 	return strings.Join(p, " and ")
 }
 
@@ -243,8 +249,8 @@ func (c *topicMessages) Resolve(env *ops.Env) error {
 	if _, err := lookup(env, c.Topic, "topic"); err != nil {
 		return err
 	}
-	if c.Count == nil && c.Contains == "" && c.Sequence == 0 {
-		return fmt.Errorf("topic.messages needs count, contains, or sequence with equals")
+	if c.Count == nil && c.Contains == "" && c.Sequence == 0 && !c.VerifyChain {
+		return fmt.Errorf("topic.messages needs count, contains, sequence with equals, or verify_chain")
 	}
 	return nil
 }
@@ -292,17 +298,40 @@ func (c *topicMessages) Observe(ctx context.Context, env *ops.Env, m *mirror.Cli
 		ok = ok && got == strconv.Quote(c.Equals)
 		actual = append(actual, fmt.Sprintf("#%d = %s", c.Sequence, got))
 	}
+	if c.VerifyChain {
+		if at, err := mirror.VerifyChain(id, msgs); err != nil {
+			ok = false
+			actual = append(actual, fmt.Sprintf("chain broken at #%d: %v", at, err))
+		} else {
+			actual = append(actual, fmt.Sprintf("chain intact across %d messages", len(msgs)))
+		}
+	}
 	return Observation{Actual: strings.Join(actual, " and "), OK: ok, Source: src}, nil
 }
 
 type scheduleExecuted struct {
 	Schedule string `yaml:"schedule"`
 	Equals   *bool  `yaml:"equals"`
+	// Result is the status the inner transaction must end with once executed.
+	// A schedule counts as executed even when its transaction failed, so
+	// without this a reverted payout would still pass.
+	Result string `yaml:"result"`
 }
 
-func (c *scheduleExecuted) want() bool       { return c.Equals == nil || *c.Equals }
-func (c *scheduleExecuted) Title() string    { return c.Schedule + " executed" }
-func (c *scheduleExecuted) Expected() string { return strconv.FormatBool(c.want()) }
+func (c *scheduleExecuted) want() bool { return c.Equals == nil || *c.Equals }
+func (c *scheduleExecuted) wantResult() string {
+	if c.Result == "" {
+		return "SUCCESS"
+	}
+	return strings.ToUpper(c.Result)
+}
+func (c *scheduleExecuted) Title() string { return c.Schedule + " executed" }
+func (c *scheduleExecuted) Expected() string {
+	if !c.want() {
+		return "false"
+	}
+	return "true, inner tx " + c.wantResult()
+}
 func (c *scheduleExecuted) Resolve(env *ops.Env) error {
 	_, err := lookup(env, c.Schedule, "schedule")
 	return err
@@ -315,13 +344,25 @@ func (c *scheduleExecuted) Observe(ctx context.Context, env *ops.Env, m *mirror.
 		return Observation{Source: src}, err
 	}
 	executed := s.ExecutedTimestamp != nil
-	actual := strconv.FormatBool(executed)
-	if executed {
-		actual += " at " + *s.ExecutedTimestamp
-	} else {
-		actual += fmt.Sprintf(" (%d signatures)", len(s.Signatures))
+	if !executed {
+		actual := fmt.Sprintf("false (%d signatures)", len(s.Signatures))
+		return Observation{Actual: actual, OK: !c.want(), Source: src}, nil
 	}
-	return Observation{Actual: actual, OK: executed == c.want(), Source: src}, nil
+	if !c.want() {
+		return Observation{Actual: "true at " + *s.ExecutedTimestamp, OK: false, Source: src}, nil
+	}
+
+	txID, ok := env.ScheduledTx(c.Schedule)
+	if !ok {
+		// a literal schedule id from outside the scenario, only the timestamp is known
+		return Observation{Actual: "true at " + *s.ExecutedTimestamp + " (inner result unknown)", OK: true, Source: src}, nil
+	}
+	tx, txSrc, err := m.Transaction(ctx, txID)
+	if err != nil {
+		return Observation{Source: txSrc}, fmt.Errorf("executed, but the inner transaction %s is not on the mirror yet: %w", txID, err)
+	}
+	actual := "true, inner tx " + tx.Result
+	return Observation{Actual: actual, OK: strings.EqualFold(tx.Result, c.wantResult()), Source: txSrc}, nil
 }
 
 type airdropPending struct {
