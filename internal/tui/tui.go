@@ -26,6 +26,25 @@ type Check struct {
 	Run  string // shell command
 }
 
+// Wallet describes a wallet option or the connected wallet.
+type Wallet struct {
+	Kind    string // default, burner, import
+	Label   string // "Portal account", "Mock operator", "Solo genesis", "Burner wallet", "Imported key"
+	Detail  string // short note: "from .env", "in process", "fresh per run, funded 20 ℏ", ...
+	Account string // 0.0.x, empty for burner before a run
+	KeyType string // ecdsa, ed25519
+	Balance string // "97.44 ℏ", empty when unknown
+	Status  string // ok, warn, error
+	Note    string // why warn or error, eg "key does not match account"
+}
+
+// WalletChoice is what the user picked in the connect wallet dialog.
+type WalletChoice struct {
+	Kind      string // default, burner, import
+	AccountID string // import only
+	Key       string // import only, never rendered
+}
+
 type Options struct {
 	Version   string
 	Cwd       string
@@ -48,6 +67,12 @@ type Options struct {
 	Judges  []string // judge scenario paths preloaded from hh.yaml
 	Checks  []Check  // checks preloaded from hh.yaml
 	Project string   // path of the loaded hh.yaml, empty when none
+
+	Wallet Wallet // connected at start, zero value when unknown
+	// Wallets lists the options for a network, with live balance and checks. Called when the dialog opens.
+	Wallets func(ctx context.Context, network string) ([]Wallet, error)
+	// ConnectWallet makes a choice the wallet every run and agent loop uses, and returns it checked.
+	ConnectWallet func(ctx context.Context, network string, choice WalletChoice) (Wallet, error)
 }
 
 // AgentRequest is one prompt sent to the agent.

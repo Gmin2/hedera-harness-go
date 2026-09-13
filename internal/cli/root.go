@@ -37,16 +37,19 @@ Networks:
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			var err error
-			proj, err = project.Load(".")
-			return err
+			if proj, err = project.Load("."); err != nil {
+				return err
+			}
+			return initWallet(cmd)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTUI(cmd)
 		},
 	}
 	root.PersistentFlags().StringP("network", "n", "", "mock, local or testnet (default from the scenario, else mock)")
+	root.PersistentFlags().String("wallet", "", "default or burner (a fresh account funded per run), default from hh.yaml")
 
-	root.AddCommand(initCmd(), runCmd(), checkCmd(), agentCmd(), doctorCmd(), opsCmd(), mockCmd())
+	root.AddCommand(initCmd(), runCmd(), checkCmd(), agentCmd(), walletCmd(), doctorCmd(), opsCmd(), mockCmd())
 
 	if err := fang.Execute(context.Background(), root, fang.WithVersion(Version), fang.WithNotifySignal(os.Interrupt)); err != nil {
 		return 1

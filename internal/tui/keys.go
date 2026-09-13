@@ -7,6 +7,7 @@ type keyMap struct {
 	Commands  key.Binding
 	Scenarios key.Binding
 	Network   key.Binding
+	Wallet    key.Binding
 	Help      key.Binding
 	Details   key.Binding
 	Cancel    key.Binding
@@ -30,6 +31,7 @@ func defaultKeys() keyMap {
 		Commands:  key.NewBinding(key.WithKeys("ctrl+p"), key.WithHelp("ctrl+p", "commands")),
 		Scenarios: key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("ctrl+r", "scenarios")),
 		Network:   key.NewBinding(key.WithKeys("ctrl+n"), key.WithHelp("ctrl+n", "network")),
+		Wallet:    key.NewBinding(key.WithKeys("ctrl+w"), key.WithHelp("ctrl+w", "wallet")),
 		Help:      key.NewBinding(key.WithKeys("ctrl+g"), key.WithHelp("ctrl+g", "more")),
 		Details:   key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "details")),
 		Cancel:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "cancel run")),
@@ -58,7 +60,11 @@ func (m *Model) ShortHelp() []key.Binding {
 		if m.opts.Agent != nil {
 			submit.SetHelp("enter", "send")
 		}
-		return []key.Binding{submit, k.Scenarios, k.Network, k.Commands, k.Quit, k.Help}
+		binds := []key.Binding{submit, k.Scenarios, k.Network}
+		if m.opts.ConnectWallet != nil {
+			binds = append(binds, k.Wallet)
+		}
+		return append(binds, k.Commands, k.Quit, k.Help)
 	}
 
 	var binds []key.Binding
@@ -90,7 +96,7 @@ func (m *Model) ShortHelp() []key.Binding {
 func (m *Model) FullHelp() [][]key.Binding {
 	k := m.keys
 	return [][]key.Binding{
-		{k.Commands, k.Scenarios, k.Network, k.Quit},
+		{k.Commands, k.Scenarios, k.Network, k.Wallet, k.Quit},
 		{k.Cancel, k.Tab, k.Details, k.Help},
 		{k.Up, k.PageUp, k.HalfUp, k.Top},
 		{k.Submit, k.Newline},

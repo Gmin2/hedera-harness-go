@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"github.com/Gmin2/hedera-harness-go/internal/target"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +17,7 @@ import (
 	"github.com/Gmin2/hedera-harness-go/internal/runner"
 	"github.com/Gmin2/hedera-harness-go/internal/scenario"
 	"github.com/Gmin2/hedera-harness-go/internal/tui"
+	"github.com/Gmin2/hedera-harness-go/internal/wallet"
 )
 
 // runTUI starts the interactive ui over the scenarios found under the
@@ -75,6 +75,12 @@ func runTUI(cmd *cobra.Command) error {
 		Launch:    launch,
 		Agent:     runAgent(cwd),
 		AgentName: "claude",
+
+		Wallets:       tuiWallets,
+		ConnectWallet: tuiConnect,
+	}
+	if info, err := wallet.Connect(cmd.Context(), mode, currentWallet()); err == nil || info.Label != "" {
+		opts.Wallet = toTUIWallet(info)
 	}
 	if proj != nil {
 		opts.Project = proj.Path
@@ -95,7 +101,7 @@ func launch(ctx context.Context, path, net string, sink event.Sink) error {
 	if err != nil {
 		return err
 	}
-	t, closeTarget, err := target.Open(ctx, mode)
+	t, closeTarget, err := open(ctx, mode)
 	if err != nil {
 		return err
 	}
@@ -128,7 +134,8 @@ func runAgent(dir string) func(ctx context.Context, req tui.AgentRequest, sink e
 			Network:        mode,
 			HH:             hhPath(),
 			Agent:          agent.Claude{},
-			Open:           target.Open,
+			Open:           open,
+			CheckEnv:       checkEnv(mode),
 			SessionID:      req.SessionID,
 			Turn:           turns,
 			AttemptTimeout: 20 * time.Minute,

@@ -96,6 +96,14 @@ type Model struct {
 
 	judges []string // scenario paths the agent loop is checked with
 	checks []Check  // shell commands the agent loop is checked with
+
+	wallet        Wallet
+	walletChoice  WalletChoice // kept so a refresh can reconnect an imported key
+	walletDlg     *dialog.Wallet
+	walletGen     int
+	walletPending bool // a ConnectWallet call is in flight
+	walletLoading bool // reconnecting after a network switch
+	walletSpin    *anim.Anim
 }
 
 // activity is what the run list shows: a scenario run or an agent session.
@@ -137,7 +145,16 @@ func newModel(ctx context.Context, opts Options) *Model {
 		network:  opts.Network,
 		operator: opts.Operator,
 		view:     run.NewView(),
+		wallet:   opts.Wallet,
 	}
+	m.walletChoice.Kind = opts.Wallet.Kind
+	m.walletSpin = anim.New(anim.Settings{
+		Size:   4,
+		From:   styles.Primary,
+		To:     styles.Secondary,
+		Seed:   "wallet pill",
+		Static: opts.NoAnim,
+	})
 	for _, path := range opts.Judges {
 		if path != "" && !slices.Contains(m.judges, path) {
 			m.judges = append(m.judges, path)
@@ -192,12 +209,36 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case launchDoneMsg:
 		if msg.gen == m.runGen && m.active() != nil {
 			m.finishRun(msg.err)
+			cmds = append(cmds, m.refreshWallet())
 		}
+
+	case walletsMsg:
+		if msg.dlg == m.walletDlg && m.walletDialogOpen() {
+			options := make([]dialog.WalletOption, len(msg.wallets))
+			for i, w := range msg.wallets {
+				options[i] = dialog.WalletOption(w)
+			}
+			m.walletDlg.SetWallets(options, msg.err)
+		}
+
+	case walletMsg:
+		cmds = append(cmds, m.handleWalletMsg(msg))
 
 	case animTickMsg:
 		m.ticking = false
 		if a := m.active(); a != nil && a.Spinning() {
 			a.Advance()
+		}
+		if m.walletLoading {
+			m.walletSpin.Advance()
+		}
+		if m.walletDialogOpen() && m.walletDlg.Busy() {
+			m.walletDlg.Advance()
+		}
+
+	case tea.MouseClickMsg:
+		if !m.dialog.HasDialogs() && msg.Button == tea.MouseLeft && m.walletHit(msg.X, msg.Y) {
+			cmds = append(cmds, m.openWallet())
 		}
 
 	case clearToastMsg:
@@ -238,11 +279,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.relayout()
-	if a := m.active(); a != nil && a.Spinning() && !m.ticking && !m.opts.NoAnim {
+	if m.animating() && !m.ticking && !m.opts.NoAnim {
 		m.ticking = true
 		cmds = append(cmds, tea.Tick(anim.FrameInterval(), func(time.Time) tea.Msg { return animTickMsg{} }))
 	}
 	return m, tea.Batch(cmds...)
+}
+
+func (m *Model) animating() bool {
+	if a := m.active(); a != nil && a.Spinning() {
+		return true
+	}
+	return m.walletLoading || m.walletDialogOpen() && m.walletDlg.Busy()
 }
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -267,6 +315,8 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case key.Matches(msg, k.Network):
 		m.openNetworks()
 		return nil
+	case key.Matches(msg, k.Wallet):
+		return m.openWallet()
 	case key.Matches(msg, k.Help):
 		m.help.ShowAll = !m.help.ShowAll
 		return nil
@@ -358,7 +408,7 @@ func (m *Model) submit(line string) tea.Cmd {
 			return m.checkCommand(arg)
 		}
 		if !slices.Contains(commandWords, name) {
-			return m.showToast(toastError, fmt.Sprintf("unknown command %q, try /run, /judge, /check, /network, /new, /clear or /quit", cmd))
+			return m.showToast(toastError, fmt.Sprintf("unknown command %q, try /run, /judge, /check, /network, /wallet, /new, /clear or /quit", cmd))
 		}
 		return m.command(name, arg)
 	}
@@ -368,7 +418,7 @@ func (m *Model) submit(line string) tea.Cmd {
 	return m.command(cmd, arg)
 }
 
-var commandWords = []string{"run", "judge", "network", "clear", "new", "quit", "exit"}
+var commandWords = []string{"run", "judge", "network", "wallet", "clear", "new", "quit", "exit"}
 
 func (m *Model) command(cmd, arg string) tea.Cmd {
 	switch cmd {
@@ -399,6 +449,8 @@ func (m *Model) command(cmd, arg string) tea.Cmd {
 			return nil
 		}
 		return m.setNetwork(arg)
+	case "wallet":
+		return m.openWallet()
 	case "clear":
 		return m.clearRun()
 	case "new":
@@ -426,7 +478,7 @@ func (m *Model) isCommand(cmd, arg string) bool {
 		return ok
 	case "network":
 		return !strings.ContainsAny(arg, " \t\n")
-	case "clear", "new", "quit", "exit":
+	case "wallet", "clear", "new", "quit", "exit":
 		return arg == ""
 	}
 	return false
@@ -480,7 +532,7 @@ func (m *Model) requestRun(path string, confirmed bool) tea.Cmd {
 		return m.busy()
 	}
 	if m.network == "testnet" && !confirmed {
-		m.dialog.Open(dialog.NewTestnetConfirm(m.sty, m.scenarioName(path), path, m.operator))
+		m.dialog.Open(dialog.NewTestnetConfirm(m.sty, m.scenarioName(path), path, m.payer()))
 		return nil
 	}
 	if m.opts.Launch == nil {
@@ -715,11 +767,15 @@ func (m *Model) setNetwork(name string) tea.Cmd {
 	if !slices.Contains(m.opts.Networks, name) {
 		return m.showToast(toastError, fmt.Sprintf("unknown network %q, pick one of %s", name, strings.Join(m.opts.Networks, ", ")))
 	}
-	m.network = name
-	if m.running() {
-		return m.showToast(toastSuccess, "the next run uses "+name)
+	var reconnect tea.Cmd
+	if name != m.network {
+		m.network = name
+		reconnect = m.reconnectWallet()
 	}
-	return m.showToast(toastSuccess, "network set to "+name)
+	if m.running() {
+		return tea.Batch(reconnect, m.showToast(toastSuccess, "the next run uses "+name))
+	}
+	return tea.Batch(reconnect, m.showToast(toastSuccess, "network set to "+name))
 }
 
 func (m *Model) updatePlaceholder() {
@@ -746,6 +802,7 @@ func (m *Model) openCommands() {
 	items := []dialog.Item{
 		{Title: "Run scenario", Info: "ctrl+r", Value: "run"},
 		{Title: "Switch network", Info: "ctrl+n", Value: "network"},
+		{Title: "Connect wallet", Info: "ctrl+w", Value: "wallet"},
 		{Title: "Use scenario as judge", Value: "judge"},
 	}
 	if len(m.judges) > 0 {
@@ -860,6 +917,12 @@ func (m *Model) handleAction(a dialog.Action) tea.Cmd {
 	case dialog.ActionNetwork:
 		m.dialog.CloseFront()
 		return m.setNetwork(a.Name)
+	case dialog.ActionConnectWallet:
+		if m.opts.ConnectWallet == nil {
+			m.walletDlg.SetError("connecting wallets is unavailable")
+			return nil
+		}
+		return m.connectWallet(WalletChoice{Kind: a.Kind, AccountID: a.AccountID, Key: a.Key}, fromDialog)
 	case dialog.ActionCommand:
 		m.dialog.CloseFront()
 		switch a.ID {
@@ -873,6 +936,8 @@ func (m *Model) handleAction(a dialog.Action) tea.Cmd {
 			return m.clearChecks()
 		case "network":
 			m.openNetworks()
+		case "wallet":
+			return m.openWallet()
 		case "cancel":
 			if m.running() {
 				return m.cancelRunWithToast()

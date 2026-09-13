@@ -6,19 +6,19 @@
 
   /work/hh-demo
 
-  ◇  mock  operator 0.0.2
-    3 scenarios · in process
+  ◇  testnet  ● 0.0.6123456 · 97.44 ℏ · Portal account
+    3 scenarios · costs hbar
 
-  Scenarios ─────────────╭────────────────────────────────────────────────────────────────────╮
-                         │ Commands ╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱╱ │
-  ● token-flow 8 steps   │                                                                    │
-  ● topic-submit 4 steps │ > net                                                              │
-  ● scheduled-payout 6 st│                                                                    │
-                         │ Switch network                                              ctrl+n │
-                         │ Connect wallet                                              ctrl+w │
-                         │                                                                    │
-                         │ ↑/↓ choose • enter confirm • esc cancel                            │
-                         ╰────────────────────────────────────────────────────────────────────╯
+  Scenarios ──────────────────── Network ────────────────────── Last run ─────────────────────
+
+  ● token-flow 8 steps           ○ mock in process              None
+  ● topic-submit 4 steps         ○ local solo node
+  ● scheduled-payout 6 steps     ◉ testnet costs hbar
+
+
+
+
+
 
 
 
@@ -28,4 +28,4 @@
  :::  
  :::  
  ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
- enter run command • ctrl+r scenarios • ctrl+n network • ctrl+p commands • ctrl+c quit • ctrl+g more
+ OKAY!  connected 0.0.6123456                                                                                           

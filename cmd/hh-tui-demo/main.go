@@ -1,7 +1,8 @@
 // Command hh-tui-demo runs the hh tui against a scripted fake runner. Any
 // text that is not a command plays a fake agent turn, and follow up prompts
 // continue the same fake conversation. It starts as if an hh.yaml had
-// preloaded a judge and a check, /judge off and /check off drop them.
+// preloaded a judge and a check, /judge off and /check off drop them. ctrl+w
+// opens a fake connect wallet dialog.
 package main
 
 import (
@@ -47,6 +48,19 @@ func main() {
 		Judges:    []string{"scenarios/scheduled-payout.yaml"},
 		Checks:    []tui.Check{{Name: "go test ./...", Run: "go test ./..."}},
 		Project:   filepath.Join(cwd, "hh.yaml"),
+		Wallet:    tui.Wallet(demo.DefaultWallet(*network)),
+		Wallets: func(ctx context.Context, network string) ([]tui.Wallet, error) {
+			list, err := demo.Wallets(ctx, network)
+			out := make([]tui.Wallet, len(list))
+			for i, w := range list {
+				out[i] = tui.Wallet(w)
+			}
+			return out, err
+		},
+		ConnectWallet: func(ctx context.Context, network string, choice tui.WalletChoice) (tui.Wallet, error) {
+			w, err := demo.ConnectWallet(ctx, network, demo.WalletChoice(choice))
+			return tui.Wallet(w), err
+		},
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

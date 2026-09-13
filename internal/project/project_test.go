@@ -16,6 +16,7 @@ func TestLoad(t *testing.T) {
 
 	os.WriteFile(filepath.Join(dir, FileName), []byte(`
 network: testnet
+wallet: { kind: burner, fund: 30 }
 agent: { model: haiku, max_cost: 1.5, timeout: 90s }
 judge:
   scenarios: [a.yaml]
@@ -29,6 +30,9 @@ judge:
 	}
 	if c.Network != "testnet" || c.Agent.Model != "haiku" || c.Agent.MaxCost != 1.5 || c.Agent.Timeout.Duration != 90*time.Second {
 		t.Fatalf("config: %+v", c)
+	}
+	if c.Wallet.Kind != "burner" || c.Wallet.Fund != 30 {
+		t.Fatalf("wallet: %+v", c.Wallet)
 	}
 	if len(c.Judge.Checks) != 2 || c.Judge.Checks[0].Run != "go vet ./..." || c.Judge.Checks[1].Label() != "tests" || c.Judge.Checks[1].Timeout.Duration != 5*time.Minute {
 		t.Fatalf("checks: %+v", c.Judge.Checks)
