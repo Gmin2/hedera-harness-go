@@ -14,6 +14,19 @@ A harness for the Hedera ecosystem. Build dapps with an agent, run real transact
 
 The above example was generated with [VHS](https://github.com/charmbracelet/vhs) ([view source](./demo/hero.tape)).
 
+## Installation
+
+```sh
+# macOS apple silicon. also darwin_amd64, linux_amd64, linux_arm64 and windows_amd64.zip
+curl -sL https://github.com/Gmin2/hedera-harness-go/releases/latest/download/hh_darwin_arm64.tar.gz | tar xz
+sudo mv hh /usr/local/bin/
+
+# or with go 1.26
+go install github.com/Gmin2/hedera-harness-go@latest
+```
+
+Scenarios need nothing else. Building a dapp also needs node, yarn and the [claude cli](https://claude.com/claude-code) with your existing login.
+
 ## Tutorial
 
 Start a project and run its first scenario. No account and no network needed, it runs on an in process mock.
@@ -27,11 +40,11 @@ cd my-project && hh run
 
 ## Build a dapp
 
-Create a [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar) project with the official [hedera skills](https://github.com/hedera-dev/hedera-skills), then describe what you want.
+Create a [scaffold-hbar](https://github.com/hedera-dev/scaffold-hbar) project with the official [hedera skills](https://github.com/hedera-dev/hedera-skills), add a testnet account from [portal.hedera.com](https://portal.hedera.com), then describe what you want.
 
 ```sh
 hh init --scaffold-hbar my-dapp --install
-cd my-dapp && cp .env.example .env    # a testnet account from portal.hedera.com
+cd my-dapp && cp .env.example .env
 hh
 ```
 
@@ -39,7 +52,12 @@ hh
 build a page where I can swap HBAR for USDC
 ```
 
-The agent writes the contracts, deploy scripts and the page. It never holds a key. After every attempt hh compiles, type checks and deploys to testnet with the connected wallet, and sends failures back into the same conversation until everything passes.
+The agent writes the contracts, deploy scripts and the page. It never sees a private key. After every attempt hh runs the judge from `hh.yaml`:
+
+1. checks: compile, type check, deploy to testnet with the connected wallet
+2. scenarios: real transactions, then assertions against the mirror node
+
+Failures go back into the same conversation until the judge passes. Judge files are pinned when the loop starts, so the agent cant edit them to pass.
 
 <img alt="the agent loop" src="demo/assets/agent.gif" width="600" />
 
@@ -66,7 +84,7 @@ hh run examples/01-first-transfer.yaml -n testnet    # the same file on testnet
 
 <img alt="hh run" src="demo/assets/run.gif" width="600" />
 
-Tokens with kyc, freeze and pause, airdrops, nfts, custom fees, topics with running hash verification and multisig schedules are all covered, and all seven [examples](./examples) pass on testnet ([hashscan links](./docs/guide.md#verified-on-testnet)).
+Tokens with kyc, freeze and pause, airdrops, nfts, custom fees, topics with running hash verification, multisig schedules and contract calls are all covered. All seven [examples](./examples) pass on testnet ([hashscan links](./docs/guide.md#verified-on-testnet)).
 
 ## Check before you spend
 
@@ -78,17 +96,15 @@ hh check scenario.yaml
 
 <img alt="hh check" src="demo/assets/check.gif" width="600" />
 
-## Installation
+## Networks and wallets
 
-```sh
-# macOS apple silicon, or darwin_amd64, linux_amd64, linux_arm64, windows_amd64.zip
-curl -sL https://github.com/Gmin2/hedera-harness-go/releases/latest/download/hh_darwin_arm64.tar.gz | tar xz
+| network | what it is |
+|---|---|
+| `mock` | a fake consensus node and mirror node in the same process, the real sdk talks to it |
+| `local` | a [solo](https://github.com/hiero-ledger/solo) network on your machine |
+| `testnet` | hedera testnet through your portal account |
 
-# or with go 1.26
-go install github.com/Gmin2/hedera-harness-go@latest
-```
-
-The agent uses the [claude cli](https://claude.com/claude-code) with your existing login.
+The connected wallet pays for every run and deploy. Use your own account, a burner that is funded per run and swept back afterwards, or import a key. Press ctrl+w in the tui or run `hh wallet`.
 
 ## Commands
 
@@ -96,11 +112,11 @@ The agent uses the [claude cli](https://claude.com/claude-code) with your existi
 |---|---|
 | `hh` | the tui: prompts, `/judge`, `/check`, ctrl+w wallet, ctrl+r scenarios, ctrl+n network |
 | `hh init [--scaffold-hbar]` | start a project or a dapp |
-| `hh agent <prompt>` | the agent loop from the cli |
+| `hh agent <prompt>` | the agent loop without the tui, `--json` for scripts |
 | `hh run`, `hh check` | run or validate scenarios |
 | `hh wallet`, `hh doctor` | check the account before spending anything |
 
-Configuration, networks, wallets and every step and assertion are in the [guide](./docs/guide.md).
+Configuration, every step and assertion, and how it works are in the [guide](./docs/guide.md).
 
 ## Compared to hedera-harness
 

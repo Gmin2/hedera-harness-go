@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # renders every tape. readme gifs land in demo/assets, video clips in demo/out.
-# vhs 0.12 cant encode with ffmpeg 9, so vhs only records frames and we encode them here.
+# vhs 0.12.0 records fine but never encodes: evaluator.go cancels its recording
+# context and then passes that same context to exec.CommandContext for ffmpeg,
+# so ffmpeg never starts and the error is printed as an empty line. 0.11.0 is
+# not affected. until a fix ships, vhs only records frames and we encode here.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,8 +19,8 @@ for tape in $tapes; do
   vhs "tmp/frames/$tape.tape" || true
 
   start=$(ls "$frames" | grep frame-text | sort | head -1 | sed 's/[^0-9]//g')
-  fps=$(grep -m1 '^Set Framerate' "demo/$tape.tape" | awk '{print $3}')
-  fps=${fps:-30}
+  fps=$(awk '/^Set Framerate/ {print $3; exit}' "demo/$tape.tape")
+  fps=${fps:-50}
   in=(-framerate "$fps" -start_number "$((10#$start))" -i "$frames/frame-text-%05d.png"
       -framerate "$fps" -start_number "$((10#$start))" -i "$frames/frame-cursor-%05d.png")
   mkdir -p "$(dirname "$out")"
